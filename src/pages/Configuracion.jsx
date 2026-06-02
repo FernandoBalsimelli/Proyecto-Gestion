@@ -1,39 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Save, 
-  Trash2, 
-  User, 
-  MapPin, 
-  Phone, 
-  FileText,
-  UploadCloud,
-  CheckCircle2,
-  Layout
-} from 'lucide-react';
+import { Save, User, FileText, CheckCircle2, Layout } from 'lucide-react';
+import { supabase } from '../supabaseClient.js';
 
-export default function Configuracion() {
+export default function Configuracion({ session }) {
   const [config, setConfig] = useState({
     nombre: '',
     especialidad: '',
     direccion: '',
     telefono: '',
-    tituloDocumento: 'PRESUPUESTO',
+    titulo_documento: 'PRESUPUESTO',
     logo: null,
-    pieSidebar: '2026' // Valor por defecto actualizado
+    pie_sidebar: '2026'
   });
 
   const [notificacion, setNotificacion] = useState(false);
+  const [cargando, setCargando] = useState(false);
   const LOGO_PREDETERMINADO = "https://cdn-icons-png.flaticon.com/512/2906/2906206.png";
 
   useEffect(() => {
-    const guardado = JSON.parse(localStorage.getItem('erp_datos_empresa'));
-    if (guardado) {
-      setConfig({
-        ...guardado,
-        pieSidebar: guardado.pieSidebar || '2026'
-      });
-    }
-  }, []);
+    // Cargar la configuración del usuario logueado desde la nube
+    const fetchConfig = async () => {
+      const { data, error } = await supabase
+        .from('configuracion')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .single(); // Trae un solo registro, ya que user_id es único
+
+      if (data && !error) {
+        setConfig(data);
+      }
+    };
+    fetchConfig();
+  }, [session.user.id]);
 
   const seleccionarTodo = (e) => e.target.select();
 
@@ -42,26 +40,51 @@ export default function Configuracion() {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => setConfig({ ...config, logo: reader.result });
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(file); // Guarda la imagen en formato base64
     }
   };
 
-  const guardarConfiguracion = () => {
-    localStorage.setItem('erp_datos_empresa', JSON.stringify(config));
-    window.dispatchEvent(new Event('storage'));
-    setNotificacion(true);
-    setTimeout(() => setNotificacion(false), 3000);
+  const guardarConfiguracion = async () => {
+    setCargando(true);
+    try {
+      // upsert: Si ya existe lo actualiza, si no existe lo crea
+      const { error } = await supabase
+        .from('configuracion')
+        .upsert({
+          user_id: session.user.id,
+          nombre: config.nombre,
+          especialidad: config.especialidad,
+          direccion: config.direccion,
+          telefono: config.telefono,
+          titulo_documento: config.titulo_documento,
+          pie_sidebar: config.pie_sidebar,
+          logo: config.logo
+        }, { onConflict: 'user_id' });
+
+      if (error) throw error;
+
+      setNotificacion(true);
+      setTimeout(() => setNotificacion(false), 3000);
+    } catch (error) {
+      alert("Error al guardar: " + error.message);
+    } finally {
+      setCargando(false);
+    }
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
-      <div className="flex justify-between items-end border-b border-slate-200 pb-6">
+    <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-slate-200 pb-6 gap-4">
         <div>
-          <h2 className="text-4xl font-black text-slate-800 uppercase tracking-tighter italic text-blue-600">Configuración</h2>
-          <p className="text-slate-500 font-bold text-[10px] uppercase tracking-[0.2em] mt-1">Gestión de identidad y sistema</p>
+          <h2 className="text-3xl md:text-4xl font-black text-slate-800 uppercase tracking-tighter italic text-blue-600">Configuración</h2>
+          <p className="text-slate-500 font-bold text-[10px] uppercase tracking-[0.2em] mt-1">Gestión de identidad y sistema en la nube</p>
         </div>
-        <button onClick={guardarConfiguracion} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-black transition-all shadow-xl active:scale-95">
-          <Save size={20}/> Guardar Cambios
+        <button 
+          onClick={guardarConfiguracion} 
+          disabled={cargando}
+          className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-black transition-all shadow-xl active:scale-95 disabled:opacity-50 w-full md:w-auto justify-center"
+        >
+          <Save size={20}/> {cargando ? 'Guardando...' : 'Guardar Cambios'}
         </button>
       </div>
 
@@ -96,29 +119,29 @@ export default function Configuracion() {
             <input 
               className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/10 transition-all"
               placeholder="Ej. 2026"
-              value={config.pieSidebar}
-              onChange={(e) => setConfig({...config, pieSidebar: e.target.value})}
+              value={config.pie_sidebar}
+              onChange={(e) => setConfig({...config, pie_sidebar: e.target.value})}
             />
           </div>
         </div>
 
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
-            <h3 className="font-black text-slate-800 uppercase text-[10px] tracking-[0.2em] mb-8 flex items-center gap-2"><User size={16}/> Perfil del Emisor</h3>
+            <h3 className="font-black text-slate-800 uppercase text-[10px] tracking-[0.2em] mb-8 flex items-center gap-2"><User size={16}/> Perfil del Emisor (PDF)</h3>
             <div className="space-y-4">
               <input className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold text-slate-800 outline-none" placeholder="Nombre de la Empresa" value={config.nombre} onChange={(e) => setConfig({...config, nombre: e.target.value})} />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold text-slate-800 outline-none" placeholder="Teléfono" value={config.telefono} onChange={(e) => setConfig({...config, telefono: e.target.value})} />
-                <textarea className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold text-slate-800 outline-none h-20 resize-none col-span-2" placeholder="Dirección" value={config.direccion} onChange={(e) => setConfig({...config, direccion: e.target.value})} />
+                <textarea className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold text-slate-800 outline-none h-20 resize-none col-span-1 md:col-span-2" placeholder="Dirección" value={config.direccion} onChange={(e) => setConfig({...config, direccion: e.target.value})} />
               </div>
             </div>
           </div>
 
           <div className="bg-slate-900 p-8 rounded-3xl shadow-xl">
             <h3 className="font-black text-white uppercase text-[10px] tracking-[0.2em] mb-8 flex items-center gap-2"><FileText size={16}/> Parámetros PDF</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <input className="w-full p-4 bg-white/5 rounded-2xl border border-white/10 font-black text-white outline-none" value={config.tituloDocumento} onChange={(e) => setConfig({...config, tituloDocumento: e.target.value.toUpperCase()})} onFocus={seleccionarTodo} />
-              <input className="w-full p-4 bg-white/5 rounded-2xl border border-white/10 font-black text-white outline-none" value={config.especialidad} onChange={(e) => setConfig({...config, especialidad: e.target.value.toUpperCase()})} onFocus={seleccionarTodo} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input className="w-full p-4 bg-white/5 rounded-2xl border border-white/10 font-black text-white outline-none" placeholder="Título Documento" value={config.titulo_documento} onChange={(e) => setConfig({...config, titulo_documento: e.target.value.toUpperCase()})} onFocus={seleccionarTodo} />
+              <input className="w-full p-4 bg-white/5 rounded-2xl border border-white/10 font-black text-white outline-none" placeholder="Especialidad" value={config.especialidad} onChange={(e) => setConfig({...config, especialidad: e.target.value.toUpperCase()})} onFocus={seleccionarTodo} />
             </div>
           </div>
         </div>

@@ -1,110 +1,94 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  FileText, 
-  Search, 
-  Trash2, 
-  Edit3, 
-  CheckCircle2, 
-  Clock, 
-  ExternalLink 
-} from 'lucide-react';
+import { Search, Edit2, Trash2, FileText, CheckCircle, Clock } from 'lucide-react';
+import { supabase } from '../supabaseClient.js';
 
-export default function Historial() {
-  const [presupuestos, setPresupuestos] = useState([]);
-  const [filtro, setFiltro] = useState('');
-  const navigate = useNavigate();
+export default function Historial({ session }) {
+  const navigate = useNavigate(); // <-- EL HOOK VA AQUÍ, DENTRO DEL COMPONENTE
+  const [ventas, setVentas] = useState([]);
+  const [busqueda, setBusqueda] = useState('');
+  const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    const datos = JSON.parse(localStorage.getItem('erp_historial_presupuestos')) || [];
-    setPresupuestos(datos);
+    fetchVentas();
   }, []);
 
-  const cambiarEstadoPago = (id) => {
-    const nuevos = presupuestos.map(p => {
-      if (p.id === id) {
-        // Si no tiene estado, lo ponemos como PAGADO. Si ya es PAGADO, lo regresamos a PENDIENTE.
-        return { ...p, estado: p.estado === 'PAGADO' ? 'PENDIENTE' : 'PAGADO' };
-      }
-      return p;
-    });
-    setPresupuestos(nuevos);
-    localStorage.setItem('erp_historial_presupuestos', JSON.stringify(nuevos));
+  const fetchVentas = async () => {
+    setCargando(true);
+    const { data, error } = await supabase
+      .from('ventas')
+      .select('*')
+      .order('fecha', { ascending: false });
+
+    if (!error) setVentas(data || []);
+    setCargando(false);
   };
 
-  const eliminar = (id) => {
-    if (!window.confirm("¿Seguro que quieres eliminar este presupuesto?")) return;
-    const nuevos = presupuestos.filter(p => p.id !== id);
-    setPresupuestos(nuevos);
-    localStorage.setItem('erp_historial_presupuestos', JSON.stringify(nuevos));
+  const eliminarVenta = async (id) => {
+    if (window.confirm("¿Seguro que quieres eliminar este registro?")) {
+      const { error } = await supabase.from('ventas').delete().eq('id', id);
+      if (!error) fetchVentas();
+    }
   };
 
-  const filtrados = presupuestos.filter(p => 
-    p.cliente.toLowerCase().includes(filtro.toLowerCase()) || 
-    p.folio.toString().includes(filtro)
+  // Función para redirigir a Presupuestos con los datos cargados
+  const cargarParaEditar = (venta) => {
+    navigate('/presupuestos', { state: { ventaEditar: venta } });
+  };
+
+  const ventasFiltradas = (ventas || []).filter(v => 
+    v.cliente.toLowerCase().includes(busqueda.toLowerCase()) || 
+    v.descripcion.toLowerCase().includes(busqueda.toLowerCase())
   );
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tighter">Historial</h2>
-          <p className="text-slate-500 font-medium">Gestiona y convierte presupuestos en ingresos</p>
-        </div>
+        <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tighter">Historial</h2>
         <div className="relative">
           <Search className="absolute left-3 top-3 text-slate-400" size={20}/>
           <input 
-            className="pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl outline-none w-80 font-bold text-slate-700 shadow-sm"
-            placeholder="Buscar por cliente o folio..."
-            value={filtro}
-            onChange={(e) => setFiltro(e.target.value)}
+            className="pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl outline-none w-full md:w-80 font-bold text-slate-700 shadow-sm"
+            placeholder="Buscar..."
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
           />
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        <table className="w-full text-left">
-          <thead className="bg-slate-50 border-b border-slate-100">
-            <tr>
-              <th className="p-5 text-[10px] font-black text-slate-400 uppercase">Folio</th>
-              <th className="p-5 text-[10px] font-black text-slate-400 uppercase">Cliente</th>
-              <th className="p-5 text-[10px] font-black text-slate-400 uppercase text-center">Estado</th>
-              <th className="p-5 text-[10px] font-black text-slate-400 uppercase text-right">Total</th>
-              <th className="p-5 text-[10px] font-black text-slate-400 uppercase text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50">
-            {filtrados.map((p) => (
-              <tr key={p.id} className="hover:bg-slate-50/50 transition">
-                <td className="p-5 font-black text-slate-900">#{p.folio}</td>
-                <td className="p-5">
-                  <p className="font-bold text-slate-700">{p.cliente}</p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">{p.fecha}</p>
-                </td>
-                <td className="p-5">
-                  <button 
-                    onClick={() => cambiarEstadoPago(p.id)}
-                    className={`mx-auto flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${
-                      p.estado === 'PAGADO' 
-                      ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' 
-                      : 'bg-amber-50 text-amber-600 border border-amber-100'
-                    }`}
-                  >
-                    {p.estado === 'PAGADO' ? <CheckCircle2 size={14}/> : <Clock size={14}/>}
-                    {p.estado === 'PAGADO' ? 'Pagado' : 'Pendiente'}
+      <div className="grid gap-4">
+        {cargando ? (
+          <p className="text-center p-10 font-bold text-slate-400">Cargando historial...</p>
+        ) : (
+          ventasFiltradas.map((v) => (
+            <div key={v.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 hover:border-blue-300 transition">
+              <div className="flex items-center gap-4 w-full">
+                <div className={`p-3 rounded-2xl ${v.estado === 'pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                  <FileText size={24} />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-black text-slate-800 text-lg">{v.cliente}</h4>
+                  <p className="text-sm text-slate-500">{v.descripcion}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end">
+                <div className="text-right">
+                  <p className="text-[10px] font-black text-slate-400 uppercase">Total</p>
+                  <p className="font-black text-lg text-slate-900">${Number(v.monto).toLocaleString()}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => cargarParaEditar(v)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl transition">
+                    <Edit2 size={18} />
                   </button>
-                </td>
-                <td className="p-5 text-right font-black text-slate-900">
-                  ${p.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                </td>
-                <td className="p-5 text-right space-x-2">
-                  <button onClick={() => navigate('/presupuestos', { state: { editando: p }})} className="p-2 text-slate-400 hover:text-blue-600 transition"><Edit3 size={18}/></button>
-                  <button onClick={() => eliminar(p.id)} className="p-2 text-slate-400 hover:text-red-500 transition"><Trash2 size={18}/></button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <button onClick={() => eliminarVenta(v.id)} className="p-2 text-slate-300 hover:text-red-500 rounded-xl transition">
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

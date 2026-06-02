@@ -1,0 +1,1759 @@
+﻿========================================
+ARCHIVO: C:\Users\Ferna\Documents\Proyecto Gestión - copia\index.html
+========================================
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ERP Servicios Pro</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+========================================
+ARCHIVO: C:\Users\Ferna\Documents\Proyecto Gestión - copia\package.json
+========================================
+{
+  "name": "proyecto-gestion",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.106.2",
+    "html2pdf.js": "^0.10.1",
+    "jspdf": "^4.2.0",
+    "jspdf-autotable": "^5.0.7",
+    "lucide-react": "^0.344.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.22.3",
+    "recharts": "^3.8.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.18",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "vite": "^5.2.2"
+  }
+}
+
+========================================
+ARCHIVO: C:\Users\Ferna\Documents\Proyecto Gestión - copia\postcss.config.js
+========================================
+export default {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+
+========================================
+ARCHIVO: C:\Users\Ferna\Documents\Proyecto Gestión - copia\tailwind.config.js
+========================================
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+========================================
+ARCHIVO: C:\Users\Ferna\Documents\Proyecto Gestión - copia\vite.config.js
+========================================
+import { defineConfig } from 'vite'
+
+export default defineConfig({
+  base: '/Proyecto-Gestion/',
+})
+========================================
+ARCHIVO: C:\Users\Ferna\Documents\Proyecto Gestión - copia\src\App.jsx
+========================================
+import React, { useState, useEffect } from 'react';
+import { supabase } from './supabaseClient';
+import Dashboard from './Pages/Dashboard.jsx';
+import Ventas from './Pages/Ventas.jsx';
+import Gastos from './Pages/Gastos.jsx';
+import Clientes from './Pages/Clientes.jsx';
+import Reportes from './Pages/Reportes.jsx';
+import Proveedores from './Pages/Proveedores.jsx';
+import Configuracion from './Pages/Configuracion.jsx';
+import { 
+  BarChart3, 
+  TrendingUp, 
+  TrendingDown, 
+  Users, 
+  PieChart, 
+  Truck, 
+  Settings,
+  LogOut,
+  Lock,
+  Mail
+} from 'lucide-react';
+
+export default function App() {
+  const [session, setSession] = useState(null);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loadingAuth, setLoadingAuth] = useState(true);
+
+  const [activeTab, setActiveTab] = useState('dashboard');
+
+  const [ventas, setVentas] = useState(() => {
+    const saved = localStorage.getItem('ventas');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [gastos, setGastos] = useState(() => {
+    const saved = localStorage.getItem('gastos');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [clientes, setClientes] = useState(() => {
+    const saved = localStorage.getItem('clientes');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [proveedores, setProveedores] = useState(() => {
+    const saved = localStorage.getItem('proveedores');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoadingAuth(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => { localStorage.setItem('ventas', JSON.stringify(ventas)); }, [ventas]);
+  useEffect(() => { localStorage.setItem('gastos', JSON.stringify(gastos)); }, [gastos]);
+  useEffect(() => { localStorage.setItem('clientes', JSON.stringify(clientes)); }, [clientes]);
+  useEffect(() => { localStorage.setItem('proveedores', JSON.stringify(proveedores)); }, [proveedores]);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    const { error } = await supabase.auth.signInWithPassword({
+      email: loginEmail,
+      password: loginPassword,
+    });
+    if (error) setLoginError('Correo o contraseÃ±a incorrectos');
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-white text-xl animate-pulse">Cargando sistema seguro...</div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-slate-700">
+          <div className="text-center mb-8">
+            <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/30">
+              <Lock className="text-white w-8 h-8" />
+            </div>
+            <h1 className="text-2xl font-bold text-white tracking-tight">Sistema de GestiÃ³n</h1>
+            <p className="text-slate-400 text-sm mt-1">Ingresa tus credenciales para acceder</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-1.5">Correo ElectrÃ³nico</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-5 h-5" />
+                <input 
+                  type="email" 
+                  required
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  placeholder="tu@correo.com"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-1.5">ContraseÃ±a</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-5 h-5" />
+                <input 
+                  type="password" 
+                  required
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                />
+              </div>
+            </div>
+
+            {loginError && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-3 rounded-xl text-center">
+                {loginError}
+              </div>
+            )}
+
+            <button 
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-xl transition-colors shadow-lg shadow-blue-600/20"
+            >
+              Iniciar SesiÃ³n
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'dashboard': return <Dashboard ventas={ventas} gastos={gastos} clientes={clientes} sub_id={session.user.id}/>;
+      case 'ventas': return <Ventas ventas={ventas} setVentas={setVentas} clientes={clientes} sub_id={session.user.id}/>;
+      case 'gastos': return <Gastos gastos={gastos} setGastos={setGastos} proveedores={proveedores} sub_id={session.user.id}/>;
+      case 'clientes': return <Clientes clientes={clientes} setClientes={setClientes} sub_id={session.user.id}/>;
+      case 'reportes': return <Reportes ventas={ventas} gastos={gastos} sub_id={session.user.id}/>;
+      case 'proveedores': return <Proveedores proveedores={proveedores} setProveedores={setProveedores} sub_id={session.user.id}/>;
+      case 'configuracion': return <Configuracion sub_id={session.user.id}/>;
+      default: return <Dashboard ventas={ventas} gastos={gastos} clientes={clientes} sub_id={session.user.id}/>;
+    }
+  };
+
+  const menuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+    { id: 'ventas', label: 'Ventas', icon: TrendingUp },
+    { id: 'gastos', label: 'Gastos', icon: TrendingDown },
+    { id: 'clientes', label: 'Clientes', icon: Users },
+    { id: 'reportes', label: 'Reportes', icon: PieChart },
+    { id: 'proveedores', label: 'Proveedores', icon: Truck },
+    { id: 'configuracion', label: 'ConfiguraciÃ³n', icon: Settings },
+  ];
+
+  return (
+    <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
+      <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col z-20 shadow-xl">
+        <div className="p-5 border-b border-slate-800 flex items-center space-x-3 bg-slate-900">
+          <div className="p-2 bg-blue-600 rounded-xl shadow-lg shadow-blue-500/20">
+            <BarChart3 className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold tracking-tight text-white">Mi GestiÃ³n</h2>
+            <span className="text-xs text-emerald-400 font-medium flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span> Servidor Seguro
+            </span>
+          </div>
+        </div>
+
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20 font-semibold translate-x-1'
+                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                }`}
+              >
+                <Icon className={`w-5 h-5 transition-transform ${isActive ? 'scale-110' : ''}`} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="p-4 border-t border-slate-800 bg-slate-900/50">
+          <div className="flex items-center justify-between mb-3 px-2">
+            <div className="truncate pr-2">
+              <p className="text-xs text-slate-500 font-medium">Usuario Activo</p>
+              <p className="text-xs text-slate-300 font-semibold truncate">{session.user.email}</p>
+            </div>
+          </div>
+          <button 
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium border border-slate-700 hover:border-red-500/40 text-slate-400 hover:text-red-400 hover:bg-red-500/5 transition-all duration-200"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Cerrar SesiÃ³n</span>
+          </button>
+        </div>
+      </aside>
+
+      <main className="flex-1 overflow-y-auto bg-slate-950 p-8 relative">
+        <div className="max-w-7xl mx-auto space-y-8">
+          {renderContent()}
+        </div>
+      </main>
+    </div>
+  );
+}
+========================================
+ARCHIVO: C:\Users\Ferna\Documents\Proyecto Gestión - copia\src\index.css
+========================================
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+========================================
+ARCHIVO: C:\Users\Ferna\Documents\Proyecto Gestión - copia\src\main.jsx
+========================================
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
+import App from './App.jsx'
+import './index.css' // O tus estilos de Tailwind
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </React.StrictMode>,
+)
+========================================
+ARCHIVO: C:\Users\Ferna\Documents\Proyecto Gestión - copia\src\supabaseClient.js
+========================================
+import { createClient } from '@supabase/supabase-js'
+
+// Esta es la URL que copiaste del primer recuadro gris (Project URL)
+const supabaseUrl = 'https://rmgekafpcgbmmwadpzjr.supabase.co/rest/v1/'
+
+// Dale clic al botÃ³n "Copy" del segundo recuadro (anon / public) y pÃ©gala aquÃ­ adentro:
+const supabaseAnonKey = 'sb_secret_TdK1um3BddOpBqn20uGzaw_owqvX1DU'
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+========================================
+ARCHIVO: C:\Users\Ferna\Documents\Proyecto Gestión - copia\src\components\Sidebar.jsx
+========================================
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { 
+  LayoutDashboard, 
+  FileText, 
+  History, 
+  Wallet, 
+  Users, 
+  Settings, 
+  Zap 
+} from 'lucide-react';
+
+export default function Sidebar() {
+  const location = useLocation();
+  const [datosEmpresa, setDatosEmpresa] = useState({
+    nombre: 'SISTEMA ERP',
+    logo: null,
+    pieSidebar: '2026' // Valor por defecto limpio
+  });
+
+  const cargarDatos = () => {
+    const guardado = JSON.parse(localStorage.getItem('erp_datos_empresa'));
+    if (guardado) {
+      setDatosEmpresa({
+        nombre: guardado.nombre || 'SISTEMA ERP',
+        logo: guardado.logo || null,
+        pieSidebar: guardado.pieSidebar || '2026'
+      });
+    }
+  };
+
+  useEffect(() => {
+    cargarDatos();
+    window.addEventListener('storage', cargarDatos);
+    return () => window.removeEventListener('storage', cargarDatos);
+  }, []);
+
+  const menuItems = [
+    { icon: <LayoutDashboard size={20}/>, label: 'Dashboard', path: '/' },
+    { icon: <FileText size={20}/>, label: 'Nueva CotizaciÃ³n', path: '/presupuestos' },
+    { icon: <History size={20}/>, label: 'Historial', path: '/historial' },
+    { icon: <Wallet size={20}/>, label: 'Finanzas', path: '/finanzas' },
+    { icon: <Users size={20}/>, label: 'Clientes', path: '/clientes' },
+    { icon: <Settings size={20}/>, label: 'ConfiguraciÃ³n', path: '/configuracion' },
+  ];
+
+  return (
+    <div className="w-64 h-screen bg-slate-900 text-slate-300 flex flex-col fixed left-0 top-0 shadow-2xl z-50">
+      <div className="p-8 flex items-center gap-3 border-b border-white/5">
+        {datosEmpresa.logo ? (
+          <img src={datosEmpresa.logo} alt="Logo" className="h-10 w-10 object-contain rounded-lg bg-white p-1" />
+        ) : (
+          <div className="p-2 bg-blue-600 rounded-xl text-white shadow-lg">
+            <Zap size={24} fill="white"/>
+          </div>
+        )}
+        <h1 className="text-sm font-black text-white tracking-tighter uppercase leading-tight truncate">
+          {datosEmpresa.nombre}
+        </h1>
+      </div>
+
+      <nav className="flex-1 px-4 space-y-2 mt-8">
+        {menuItems.map((item) => (
+          <Link 
+            key={item.path} 
+            to={item.path} 
+            className={`flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all font-bold text-[13px] ${
+              location.pathname === item.path 
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 translate-x-1' 
+                : 'hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            {item.icon} {item.label}
+          </Link>
+        ))}
+      </nav>
+
+      {/* PIE DE PÃGINA PERSONALIZABLE */}
+      <div className="p-8 border-t border-white/5">
+        <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] text-center leading-relaxed">
+          {datosEmpresa.pieSidebar}
+        </p>
+      </div>
+    </div>
+  );
+}
+========================================
+ARCHIVO: C:\Users\Ferna\Documents\Proyecto Gestión - copia\src\pages\Clientes.jsx
+========================================
+import React, { useState, useEffect } from 'react';
+import { UserPlus, Search, Edit2, Trash2, Save, X, Building2, Smartphone, Mail, Hash, MapPin, CalendarDays } from 'lucide-react';
+
+export default function Clientes() {
+  const [clientes, setClientes] = useState([]);
+  const [busqueda, setBusqueda] = useState('');
+  const [editandoId, setEditandoId] = useState(null);
+  
+  // Estado alineado con el DTO del Backend (NestJS / Class Validator)
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    RFC: '',
+    bussinessName: '',
+    postalCode: '',
+    city: '',
+    taxRegime: '',
+    status: 'ACTIVE'
+  });
+
+  // Cargar datos provisionales de LocalStorage
+  useEffect(() => {
+    const guardados = JSON.parse(localStorage.getItem('erp_clientes')) || [];
+    setClientes(guardados);
+  }, []);
+
+  const manejarCambio = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const guardarCliente = (e) => {
+    e.preventDefault();
+    
+    // Validaciones front-end (Espejo de los decorators del backend)
+    if (!formData.name || formData.name.length < 3) return alert("El nombre debe tener al menos 3 caracteres");
+    if (!formData.phone) return alert("El telÃ©fono es obligatorio");
+    if (!formData.city || formData.city.length < 3) return alert("La ciudad debe tener al menos 3 caracteres");
+
+    let nuevosClientes;
+    if (editandoId) {
+      nuevosClientes = clientes.map(c => c.id === editandoId ? { ...formData, id: editandoId } : c);
+    } else {
+      const nuevo = { ...formData, id: Date.now() };
+      nuevosClientes = [nuevo, ...clientes];
+    }
+
+    setClientes(nuevosClientes);
+    localStorage.setItem('erp_clientes', JSON.stringify(nuevosClientes));
+    resetForm();
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: '', email: '', phone: '', RFC: '',
+      bussinessName: '', postalCode: '', city: '',
+      taxRegime: '', status: 'ACTIVE'
+    });
+    setEditandoId(null);
+  };
+
+  const iniciarEdicion = (cliente) => {
+    setEditandoId(cliente.id);
+    setFormData(cliente);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const eliminarCliente = (id) => {
+    if (window.confirm("Â¿EstÃ¡s seguro de eliminar este registro?")) {
+      const filtrados = clientes.filter(c => c.id !== id);
+      setClientes(filtrados);
+      localStorage.setItem('erp_clientes', JSON.stringify(filtrados));
+    }
+  };
+
+  // FILTRADO SEGURO (Previene el error de 'toLowerCase' en campos nulos)
+  const clientesFiltrados = clientes.filter(c => {
+    const search = busqueda.toLowerCase();
+    const nombreMatches = (c.name || "").toLowerCase().includes(search);
+    const rfcMatches = (c.RFC || "").toLowerCase().includes(search);
+    const businessMatches = (c.bussinessName || "").toLowerCase().includes(search);
+    
+    return nombreMatches || rfcMatches || businessMatches;
+  });
+
+  return (
+    <div className="p-8 space-y-8">
+      <div className="flex justify-between items-center">
+        <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">
+          Directorio de Clientes
+        </h2>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* FORMULARIO DE REGISTRO */}
+        <div className="lg:col-span-1">
+          <form onSubmit={guardarCliente} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 sticky top-8 space-y-4">
+            <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2 mb-2">
+              {editandoId ? <Edit2 size={20} className="text-blue-600"/> : <UserPlus size={20} className="text-blue-600"/>}
+              {editandoId ? 'Actualizar Cliente' : 'Nuevo Cliente'}
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nombre Completo *</label>
+                <input name="name" value={formData.name} onChange={manejarCambio} className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/10" placeholder="Nombre del contacto" />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">TelÃ©fono *</label>
+                  <input name="phone" value={formData.phone} onChange={manejarCambio} className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold outline-none" placeholder="614..." />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Email</label>
+                  <input name="email" value={formData.email} onChange={manejarCambio} className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold outline-none" placeholder="correo@ejemplo.com" />
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 space-y-4">
+                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">InformaciÃ³n Fiscal</p>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">RFC</label>
+                    <input name="RFC" value={formData.RFC} onChange={manejarCambio} className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold outline-none" placeholder="XAXX01..." />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CÃ³digo Postal</label>
+                    <input name="postalCode" value={formData.postalCode} onChange={manejarCambio} className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold outline-none" placeholder="31000" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">RazÃ³n Social</label>
+                  <input name="bussinessName" value={formData.bussinessName} onChange={manejarCambio} className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold outline-none" placeholder="Nombre legal" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Ciudad *</label>
+                    <input name="city" value={formData.city} onChange={manejarCambio} className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold outline-none" placeholder="Chihuahua" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Estatus</label>
+                    <select name="status" value={formData.status} onChange={manejarCambio} className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold outline-none">
+                      <option value="ACTIVE">Activo</option>
+                      <option value="INACTIVE">Inactivo</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">RÃ©gimen Fiscal</label>
+                  <input name="taxRegime" value={formData.taxRegime} onChange={manejarCambio} className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold outline-none" placeholder="Ej. 601" />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <button type="submit" className="flex-1 bg-slate-900 text-white p-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition shadow-lg">
+                  <Save size={18}/> {editandoId ? 'Guardar Cambios' : 'Registrar'}
+                </button>
+                {editandoId && (
+                  <button type="button" onClick={resetForm} className="bg-slate-100 text-slate-500 p-4 rounded-2xl font-bold hover:bg-slate-200 transition">
+                    <X size={18}/>
+                  </button>
+                )}
+              </div>
+            </div>
+          </form>
+        </div>
+
+        {/* LISTADO DE TARJETAS */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="relative">
+            <Search className="absolute left-4 top-4 text-slate-400" size={20}/>
+            <input 
+              type="text" 
+              placeholder="Buscar por nombre, RFC o razÃ³n social..." 
+              className="w-full p-4 pl-12 bg-white rounded-3xl shadow-sm border border-slate-200 outline-none font-medium focus:ring-2 focus:ring-blue-500/10"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {clientesFiltrados.map(cliente => (
+              <div key={cliente.id} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:border-blue-300 transition-all group relative overflow-hidden">
+                <div className={`absolute top-0 right-0 w-1 h-full ${cliente.status === 'ACTIVE' ? 'bg-green-500' : 'bg-red-400'}`}></div>
+                
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-slate-900 text-white p-2.5 rounded-xl">
+                      <Building2 size={20}/>
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-800 uppercase text-sm leading-tight">{cliente.name || "Sin nombre"}</h4>
+                      <p className="text-[10px] font-bold text-blue-600">{cliente.RFC || 'PÃšBLICO EN GENERAL'}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => iniciarEdicion(cliente)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
+                      <Edit2 size={16}/>
+                    </button>
+                    <button onClick={() => eliminarCliente(cliente.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                      <Trash2 size={16}/>
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-50 text-[11px] font-bold text-slate-500">
+                  <div className="flex items-center gap-2"><Smartphone size={14} className="text-slate-300"/> {cliente.phone}</div>
+                  <div className="flex items-center gap-2"><MapPin size={14} className="text-slate-300"/> {cliente.city}</div>
+                  <div className="flex items-center gap-2 col-span-2 truncate"><Mail size={14} className="text-slate-300"/> {cliente.email || 'Sin correo registrado'}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {clientesFiltrados.length === 0 && (
+            <div className="text-center py-20 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+              <p className="text-slate-400 font-bold">No se encontraron clientes con ese criterio.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+========================================
+ARCHIVO: C:\Users\Ferna\Documents\Proyecto Gestión - copia\src\pages\Configuracion.jsx
+========================================
+import React, { useState, useEffect } from 'react';
+import { 
+  Save, 
+  Trash2, 
+  User, 
+  MapPin, 
+  Phone, 
+  FileText,
+  UploadCloud,
+  CheckCircle2,
+  Layout
+} from 'lucide-react';
+
+export default function Configuracion() {
+  const [config, setConfig] = useState({
+    nombre: '',
+    especialidad: '',
+    direccion: '',
+    telefono: '',
+    tituloDocumento: 'PRESUPUESTO',
+    logo: null,
+    pieSidebar: '2026' // Valor por defecto actualizado
+  });
+
+  const [notificacion, setNotificacion] = useState(false);
+  const LOGO_PREDETERMINADO = "https://cdn-icons-png.flaticon.com/512/2906/2906206.png";
+
+  useEffect(() => {
+    const guardado = JSON.parse(localStorage.getItem('erp_datos_empresa'));
+    if (guardado) {
+      setConfig({
+        ...guardado,
+        pieSidebar: guardado.pieSidebar || '2026'
+      });
+    }
+  }, []);
+
+  const seleccionarTodo = (e) => e.target.select();
+
+  const manejarLogo = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setConfig({ ...config, logo: reader.result });
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const guardarConfiguracion = () => {
+    localStorage.setItem('erp_datos_empresa', JSON.stringify(config));
+    window.dispatchEvent(new Event('storage'));
+    setNotificacion(true);
+    setTimeout(() => setNotificacion(false), 3000);
+  };
+
+  return (
+    <div className="p-8 max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
+      <div className="flex justify-between items-end border-b border-slate-200 pb-6">
+        <div>
+          <h2 className="text-4xl font-black text-slate-800 uppercase tracking-tighter italic text-blue-600">ConfiguraciÃ³n</h2>
+          <p className="text-slate-500 font-bold text-[10px] uppercase tracking-[0.2em] mt-1">GestiÃ³n de identidad y sistema</p>
+        </div>
+        <button onClick={guardarConfiguracion} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black flex items-center gap-2 hover:bg-black transition-all shadow-xl active:scale-95">
+          <Save size={20}/> Guardar Cambios
+        </button>
+      </div>
+
+      {notificacion && (
+        <div className="fixed top-8 right-8 bg-emerald-500 text-white px-6 py-4 rounded-2xl font-black shadow-2xl flex items-center gap-3 z-50 animate-in slide-in-from-right">
+          <CheckCircle2 size={24}/> ACTUALIZADO
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-1 space-y-6">
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+            <h3 className="font-black text-slate-800 uppercase text-[10px] tracking-[0.2em] mb-6">Logo Corporativo</h3>
+            <div className="flex flex-col items-center p-6 border-2 border-dashed border-slate-100 rounded-[2rem] bg-slate-50/50">
+              <img src={config.logo || LOGO_PREDETERMINADO} alt="Logo" className="h-28 w-28 object-contain mb-6 drop-shadow-md rounded-2xl bg-white p-3" />
+              <div className="flex gap-2">
+                <label className="bg-white px-4 py-2 rounded-xl border border-slate-200 text-[10px] font-black uppercase cursor-pointer hover:border-blue-500 transition-all">
+                  Cargar <input type="file" className="hidden" onChange={manejarLogo} accept="image/*" />
+                </label>
+                {config.logo && (
+                  <button onClick={() => setConfig({...config, logo: null})} className="bg-rose-50 text-rose-500 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-rose-100 transition-all">
+                    Eliminar
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+            <h3 className="font-black text-slate-800 uppercase text-[10px] tracking-[0.2em] mb-4 flex items-center gap-2"><Layout size={16}/> Interfaz Sidebar</h3>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Texto del Pie</label>
+            <input 
+              className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500/10 transition-all"
+              placeholder="Ej. 2026"
+              value={config.pieSidebar}
+              onChange={(e) => setConfig({...config, pieSidebar: e.target.value})}
+            />
+          </div>
+        </div>
+
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+            <h3 className="font-black text-slate-800 uppercase text-[10px] tracking-[0.2em] mb-8 flex items-center gap-2"><User size={16}/> Perfil del Emisor</h3>
+            <div className="space-y-4">
+              <input className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold text-slate-800 outline-none" placeholder="Nombre de la Empresa" value={config.nombre} onChange={(e) => setConfig({...config, nombre: e.target.value})} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold text-slate-800 outline-none" placeholder="TelÃ©fono" value={config.telefono} onChange={(e) => setConfig({...config, telefono: e.target.value})} />
+                <textarea className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold text-slate-800 outline-none h-20 resize-none col-span-2" placeholder="DirecciÃ³n" value={config.direccion} onChange={(e) => setConfig({...config, direccion: e.target.value})} />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-900 p-8 rounded-3xl shadow-xl">
+            <h3 className="font-black text-white uppercase text-[10px] tracking-[0.2em] mb-8 flex items-center gap-2"><FileText size={16}/> ParÃ¡metros PDF</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <input className="w-full p-4 bg-white/5 rounded-2xl border border-white/10 font-black text-white outline-none" value={config.tituloDocumento} onChange={(e) => setConfig({...config, tituloDocumento: e.target.value.toUpperCase()})} onFocus={seleccionarTodo} />
+              <input className="w-full p-4 bg-white/5 rounded-2xl border border-white/10 font-black text-white outline-none" value={config.especialidad} onChange={(e) => setConfig({...config, especialidad: e.target.value.toUpperCase()})} onFocus={seleccionarTodo} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+========================================
+ARCHIVO: C:\Users\Ferna\Documents\Proyecto Gestión - copia\src\pages\Dashboard.jsx
+========================================
+import React, { useState, useEffect } from 'react';
+import { 
+  DollarSign, 
+  FileText, 
+  Clock, 
+  CheckCircle2, 
+  TrendingUp, 
+  Users,
+  AlertCircle
+} from 'lucide-react';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  Cell 
+} from 'recharts';
+
+export default function Dashboard() {
+  const [stats, setStats] = useState({
+    ingresosReales: 0,
+    pendientesCobro: 0,
+    totalPresupuestos: 0,
+    clientesActivos: 0
+  });
+  const [graficaData, setGraficaData] = useState([]);
+
+  useEffect(() => {
+    // 1. Cargar datos de LocalStorage
+    const presupuestos = JSON.parse(localStorage.getItem('erp_historial_presupuestos')) || [];
+    const clientes = JSON.parse(localStorage.getItem('erp_clientes')) || [];
+    const otrosIngresos = JSON.parse(localStorage.getItem('erp_otros_ingresos')) || [];
+
+    // 2. Filtrar Ingresos Reales (Presupuestos PAGADOS + Otros Ingresos)
+    const pagados = presupuestos.filter(p => p.estado === 'PAGADO');
+    const pendientes = presupuestos.filter(p => p.estado !== 'PAGADO');
+
+    const sumaPagados = pagados.reduce((acc, p) => acc + p.total, 0);
+    const sumaOtros = otrosIngresos.reduce((acc, i) => acc + i.monto, 0);
+    const sumaPendientes = pendientes.reduce((acc, p) => acc + p.total, 0);
+
+    setStats({
+      ingresosReales: sumaPagados + sumaOtros,
+      pendientesCobro: sumaPendientes,
+      totalPresupuestos: presupuestos.length,
+      clientesActivos: clientes.length
+    });
+
+    // 3. Preparar datos para la grÃ¡fica (Comparativa Real vs Pendiente)
+    const dataComp = [
+      { name: 'Cobrado', monto: sumaPagados + sumaOtros, color: '#10b981' },
+      { name: 'Pendiente', monto: sumaPendientes, color: '#f59e0b' }
+    ];
+    setGraficaData(dataComp);
+
+  }, []);
+
+  const tarjetas = [
+    { 
+      label: 'Ingresos Reales', 
+      valor: `$${stats.ingresosReales.toLocaleString('es-MX')}`, 
+      icon: <CheckCircle2 className="text-emerald-500"/>, 
+      bg: 'bg-emerald-50',
+      desc: 'Dinero ya cobrado'
+    },
+    { 
+      label: 'Por Cobrar', 
+      valor: `$${stats.pendientesCobro.toLocaleString('es-MX')}`, 
+      icon: <Clock className="text-amber-500"/>, 
+      bg: 'bg-amber-50',
+      desc: 'Presupuestos pendientes'
+    },
+    { 
+      label: 'Cotizaciones', 
+      valor: stats.totalPresupuestos, 
+      icon: <FileText className="text-blue-500"/>, 
+      bg: 'bg-blue-50',
+      desc: 'Total en historial'
+    },
+    { 
+      label: 'Clientes', 
+      valor: stats.clientesActivos, 
+      icon: <Users className="text-indigo-500"/>, 
+      bg: 'bg-indigo-50',
+      desc: 'En tu base de datos'
+    },
+  ];
+
+  return (
+    <div className="p-8 space-y-8 bg-slate-50 min-h-screen">
+      <div>
+        <h2 className="text-4xl font-black text-slate-800 uppercase tracking-tighter italic">Panel de Control</h2>
+        <p className="text-slate-500 font-bold text-xs uppercase tracking-widest mt-1">Resumen operativo y financiero</p>
+      </div>
+
+      {/* TARJETAS DE MÃ‰TRICAS REALES */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {tarjetas.map((t, i) => (
+          <div key={i} className="bg-white p-6 rounded-[2.5rem] border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+            <div className="flex justify-between items-start mb-4">
+              <div className={`p-4 ${t.bg} rounded-2xl group-hover:scale-110 transition-transform`}>
+                {t.icon}
+              </div>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.label}</span>
+            </div>
+            <p className="text-3xl font-black text-slate-900 mb-1">{t.valor}</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase">{t.desc}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* GRÃFICA DE FLUJO */}
+        <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+          <div className="flex justify-between items-center mb-8">
+            <h3 className="font-black text-slate-800 uppercase text-xs tracking-[0.2em] flex items-center gap-2">
+              <TrendingUp size={16} className="text-blue-600"/> Estado de Cartera
+            </h3>
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={graficaData} barSize={60}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{fontSize: 12, fontBold: '800', fill: '#64748b'}}
+                />
+                <YAxis hide />
+                <Tooltip 
+                  cursor={{fill: 'transparent'}}
+                  contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                />
+                <Bar dataKey="monto" radius={[15, 15, 15, 15]}>
+                  {graficaData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* AVISOS RÃPIDOS */}
+        <div className="bg-slate-900 p-8 rounded-[2.5rem] shadow-xl text-white">
+          <h3 className="font-black uppercase text-[10px] tracking-[0.2em] mb-6 text-blue-400">Notificaciones</h3>
+          <div className="space-y-6">
+            {stats.pendientesCobro > 0 ? (
+              <div className="flex gap-4 items-start border-l-2 border-amber-500 pl-4">
+                <AlertCircle className="text-amber-500 shrink-0" size={20}/>
+                <div>
+                  <p className="font-bold text-sm">Cobros Pendientes</p>
+                  <p className="text-[10px] text-slate-400 uppercase mt-1">
+                    Tienes ${stats.pendientesCobro.toLocaleString()} por recuperar en presupuestos no marcados como pagados.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-4 items-start border-l-2 border-emerald-500 pl-4">
+                <CheckCircle2 className="text-emerald-500 shrink-0" size={20}/>
+                <div>
+                  <p className="font-bold text-sm">Cartera Limpia</p>
+                  <p className="text-[10px] text-slate-400 uppercase mt-1">Todos tus presupuestos estÃ¡n al dÃ­a.</p>
+                </div>
+              </div>
+            )}
+            
+            <div className="p-6 bg-white/5 rounded-3xl border border-white/10">
+              <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-2">Recordatorio TÃ©cnico</p>
+              <p className="text-xs font-medium text-slate-300 leading-relaxed">
+                Recuerda que los ingresos se sincronizan automÃ¡ticamente con tu historial de presupuestos.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+========================================
+ARCHIVO: C:\Users\Ferna\Documents\Proyecto Gestión - copia\src\pages\Finanzas.jsx
+========================================
+import React, { useState, useEffect } from 'react';
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  Wallet, 
+  Plus, 
+  Trash2, 
+  BarChart3, 
+  Receipt,
+  AlertCircle,
+  ArrowUpCircle
+} from 'lucide-react';
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  Legend 
+} from 'recharts';
+
+export default function Finanzas() {
+  const [gastos, setGastos] = useState([]);
+  const [ingresosPresupuestos, setIngresosPresupuestos] = useState([]);
+  const [otrosIngresos, setOtrosIngresos] = useState([]);
+  const [datosGrafica, setDatosGrafica] = useState([]);
+  
+  const [nuevoMovimiento, setNuevoMovimiento] = useState({ 
+    descripcion: '', 
+    monto: '', 
+    categoria: 'Materiales',
+    otraCategoria: '', // Nueva casilla para categorÃ­a personalizada
+    tipo: 'GASTO' 
+  });
+
+  useEffect(() => {
+    const gastosGuardados = JSON.parse(localStorage.getItem('erp_gastos')) || [];
+    const otrosIngresosGuardados = JSON.parse(localStorage.getItem('erp_otros_ingresos')) || [];
+    const presupuestos = JSON.parse(localStorage.getItem('erp_historial_presupuestos')) || [];
+    
+    const pagados = presupuestos.filter(p => p.estado === 'PAGADO');
+    
+    setIngresosPresupuestos(pagados);
+    setGastos(gastosGuardados);
+    setOtrosIngresos(otrosIngresosGuardados);
+
+    const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const dataProcesada = meses.map(mes => ({ name: mes, ingresos: 0, gastos: 0 }));
+
+    pagados.forEach(p => {
+      const mesIndex = parseInt(p.fecha.split('/')[1]) - 1;
+      if (mesIndex >= 0 && mesIndex < 12) dataProcesada[mesIndex].ingresos += p.total;
+    });
+
+    otrosIngresosGuardados.forEach(i => {
+      const mesIndex = parseInt(i.fecha.split('/')[1]) - 1;
+      if (mesIndex >= 0 && mesIndex < 12) dataProcesada[mesIndex].ingresos += i.monto;
+    });
+
+    gastosGuardados.forEach(g => {
+      const mesIndex = parseInt(g.fecha.split('/')[1]) - 1;
+      if (mesIndex >= 0 && mesIndex < 12) dataProcesada[mesIndex].gastos += g.monto;
+    });
+
+    setDatosGrafica(dataProcesada.slice(0, new Date().getMonth() + 1));
+  }, []);
+
+  const seleccionarTodo = (e) => e.target.select();
+
+  const registrarMovimiento = (e) => {
+    e.preventDefault();
+    if (!nuevoMovimiento.monto || !nuevoMovimiento.descripcion) return;
+
+    // LÃ³gica para la categorÃ­a personalizada
+    const categoriaFinal = nuevoMovimiento.categoria === 'OTRO' 
+      ? nuevoMovimiento.otraCategoria.toUpperCase() || 'GENERAL'
+      : nuevoMovimiento.categoria;
+
+    const registro = {
+      id: Date.now(),
+      descripcion: nuevoMovimiento.descripcion,
+      monto: Math.max(0, parseFloat(nuevoMovimiento.monto) || 0),
+      categoria: categoriaFinal,
+      fecha: new Date().toLocaleDateString('es-MX')
+    };
+
+    if (nuevoMovimiento.tipo === 'GASTO') {
+      const actualizados = [registro, ...gastos];
+      setGastos(actualizados);
+      localStorage.setItem('erp_gastos', JSON.stringify(actualizados));
+    } else {
+      const actualizados = [registro, ...otrosIngresos];
+      setOtrosIngresos(actualizados);
+      localStorage.setItem('erp_otros_ingresos', JSON.stringify(actualizados));
+    }
+
+    setNuevoMovimiento({ descripcion: '', monto: '', categoria: 'Materiales', otraCategoria: '', tipo: 'GASTO' });
+    window.location.reload(); 
+  };
+
+  const eliminarMovimiento = (id, tipo) => {
+    if (tipo === 'GASTO') {
+      const filtrados = gastos.filter(g => g.id !== id);
+      setGastos(filtrados);
+      localStorage.setItem('erp_gastos', JSON.stringify(filtrados));
+    } else {
+      const filtrados = otrosIngresos.filter(i => i.id !== id);
+      setOtrosIngresos(filtrados);
+      localStorage.setItem('erp_otros_ingresos', JSON.stringify(filtrados));
+    }
+    window.location.reload();
+  };
+
+  const totalIngresos = ingresosPresupuestos.reduce((acc, c) => acc + c.total, 0) + otrosIngresos.reduce((acc, c) => acc + c.monto, 0);
+  const totalGastos = gastos.reduce((acc, curr) => acc + curr.monto, 0);
+  const balance = totalIngresos - totalGastos;
+
+  return (
+    <div className="p-8 space-y-8 bg-slate-50 min-h-screen">
+      <div>
+        <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tighter italic">Finanzas Reales</h2>
+        <p className="text-slate-500 font-bold text-xs uppercase tracking-widest">Control de flujo de caja</p>
+      </div>
+
+      {/* TARJETAS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl"><TrendingUp size={24}/></div>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cobrado</span>
+          </div>
+          <p className="text-3xl font-black text-slate-900">${totalIngresos.toLocaleString('es-MX')}</p>
+        </div>
+
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl"><TrendingDown size={24}/></div>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Gastado</span>
+          </div>
+          <p className="text-3xl font-black text-slate-900">${totalGastos.toLocaleString('es-MX')}</p>
+        </div>
+
+        <div className={`p-6 rounded-3xl border shadow-xl transition-all ${balance >= 0 ? 'bg-slate-900 border-slate-900' : 'bg-orange-600 border-orange-600'}`}>
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-3 bg-white/10 text-white rounded-2xl"><Wallet size={24}/></div>
+            <span className="text-[10px] font-black text-white/60 uppercase tracking-widest">Utilidad Neta</span>
+          </div>
+          <p className="text-3xl font-black text-white">${balance.toLocaleString('es-MX')}</p>
+        </div>
+      </div>
+
+      {/* GRÃFICA RESTAURADA */}
+      <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+        <div className="h-[300px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={datosGrafica}>
+              <defs>
+                <linearGradient id="colorIngresos" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                </linearGradient>
+                <linearGradient id="colorGastos" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.15}/>
+                  <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 11, fontWeight: '700', fill: '#94a3b8'}} dy={10} />
+              <YAxis hide domain={['auto', 'auto']} />
+              <Tooltip contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }} />
+              <Area type="monotone" dataKey="ingresos" stroke="#10b981" strokeWidth={4} fillOpacity={1} fill="url(#colorIngresos)" name="Ingresos ($)" />
+              <Area type="monotone" dataKey="gastos" stroke="#f43f5e" strokeWidth={4} fillOpacity={1} fill="url(#colorGastos)" name="Gastos ($)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-10">
+        {/* REGISTRO CON CAMPO "OTRO" */}
+        <div className="lg:col-span-1 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm h-fit">
+          <div className="flex items-center gap-2 mb-6 uppercase text-[10px] font-black tracking-widest text-slate-400">
+            <ArrowUpCircle size={18}/> Nuevo Movimiento
+          </div>
+          <form onSubmit={registrarMovimiento} className="space-y-4">
+            <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-4">
+                <button type="button" onClick={() => setNuevoMovimiento({...nuevoMovimiento, tipo: 'GASTO'})} className={`flex-1 py-2 rounded-lg font-bold text-[10px] uppercase transition ${nuevoMovimiento.tipo === 'GASTO' ? 'bg-white text-rose-500 shadow-sm' : 'text-slate-500'}`}>Gasto</button>
+                <button type="button" onClick={() => setNuevoMovimiento({...nuevoMovimiento, tipo: 'INGRESO'})} className={`flex-1 py-2 rounded-lg font-bold text-[10px] uppercase transition ${nuevoMovimiento.tipo === 'INGRESO' ? 'bg-white text-emerald-500 shadow-sm' : 'text-slate-500'}`}>Ingreso</button>
+            </div>
+            
+            <input className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 outline-none font-bold" value={nuevoMovimiento.descripcion} onChange={(e) => setNuevoMovimiento({...nuevoMovimiento, descripcion: e.target.value})} placeholder="Ej. Gasolina o AsesorÃ­a" required />
+            
+            <div className="grid grid-cols-2 gap-4">
+              <input type="number" step="0.01" className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 outline-none font-black" value={nuevoMovimiento.monto} onChange={(e) => setNuevoMovimiento({...nuevoMovimiento, monto: e.target.value})} onFocus={seleccionarTodo} placeholder="0.00" required />
+              <select className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 outline-none font-bold" value={nuevoMovimiento.categoria} onChange={(e) => setNuevoMovimiento({...nuevoMovimiento, categoria: e.target.value})}>
+                <option>Materiales</option>
+                <option>NÃ³mina</option>
+                <option>Combustible</option>
+                <option>Servicios</option>
+                <option value="OTRO">OTRO...</option>
+              </select>
+            </div>
+
+            {nuevoMovimiento.categoria === 'OTRO' && (
+              <input 
+                className="w-full p-3 bg-blue-50 rounded-xl border border-blue-100 outline-none font-bold text-blue-700 animate-in fade-in zoom-in duration-200" 
+                placeholder="Escribe la categorÃ­a" 
+                value={nuevoMovimiento.otraCategoria}
+                onChange={(e) => setNuevoMovimiento({...nuevoMovimiento, otraCategoria: e.target.value})}
+                required
+              />
+            )}
+            
+            <button className={`w-full p-4 rounded-2xl font-black text-white transition-all shadow-lg active:scale-95 ${nuevoMovimiento.tipo === 'GASTO' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}>
+              Registrar {nuevoMovimiento.tipo}
+            </button>
+          </form>
+        </div>
+
+        {/* HISTORIAL */}
+        <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+          <h3 className="font-black text-slate-800 mb-6 uppercase tracking-widest text-[10px]">Movimientos Manuales</h3>
+          <div className="space-y-3">
+            {[...gastos, ...otrosIngresos].sort((a,b) => b.id - a.id).map((m) => {
+              const esGasto = gastos.some(g => g.id === m.id);
+              return (
+                <div key={m.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl group transition-all hover:bg-white hover:shadow-md border border-transparent hover:border-slate-100">
+                  <div className="flex gap-4 items-center">
+                    <div className={`p-2 rounded-xl ${esGasto ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-500'}`}>
+                        {esGasto ? <TrendingDown size={16}/> : <TrendingUp size={16}/>}
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-slate-700">{m.descripcion}</p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{m.fecha} â€” {m.categoria}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <p className={`font-black text-sm ${esGasto ? 'text-rose-500' : 'text-emerald-500'}`}>
+                        {esGasto ? '-' : '+'}${m.monto.toLocaleString('es-MX')}
+                    </p>
+                    <button onClick={() => eliminarMovimiento(m.id, esGasto ? 'GASTO' : 'INGRESO')} className="text-slate-200 hover:text-rose-500 transition-colors">
+                      <Trash2 size={16}/>
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+========================================
+ARCHIVO: C:\Users\Ferna\Documents\Proyecto Gestión - copia\src\pages\Gastos.jsx
+========================================
+import React, { useState, useEffect } from 'react';
+import { DollarSign, Fuel, Hammer, Utensils, Trash2, PlusCircle, Receipt } from 'lucide-react';
+
+export default function Gastos() {
+  // 1. Cargar gastos guardados al iniciar
+  const [gastos, setGastos] = useState(() => {
+    const saved = localStorage.getItem('erp_gastos');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [nuevoGasto, setNuevoGasto] = useState({
+    concepto: '',
+    categoria: 'Materiales',
+    monto: '',
+    fecha: new Date().toISOString().split('T')[0]
+  });
+
+  // 2. Guardar automÃ¡ticamente cuando cambie la lista
+  useEffect(() => {
+    localStorage.setItem('erp_gastos', JSON.stringify(gastos));
+  }, [gastos]);
+
+  const agregarGasto = (e) => {
+    e.preventDefault();
+    if (!nuevoGasto.concepto || !nuevoGasto.monto) return alert("Por favor llena el concepto y el monto");
+    
+    const gastoConId = { ...nuevoGasto, id: Date.now(), monto: parseFloat(nuevoGasto.monto) };
+    setGastos([gastoConId, ...gastos]);
+    
+    // Limpiar formulario
+    setNuevoGasto({
+      concepto: '',
+      categoria: 'Materiales',
+      monto: '',
+      fecha: new Date().toISOString().split('T')[0]
+    });
+  };
+
+  const eliminarGasto = (id) => {
+    setGastos(gastos.filter(g => g.id !== id));
+  };
+
+  const totalGastos = gastos.reduce((acc, g) => acc + g.monto, 0);
+
+  return (
+    <div className="p-8 space-y-8 bg-slate-50 min-h-screen">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-black text-slate-800">Control de Gastos</h2>
+          <p className="text-slate-500 font-medium">Registro de insumos, combustible y viÃ¡ticos</p>
+        </div>
+        <div className="bg-red-50 border border-red-100 px-6 py-3 rounded-2xl">
+          <p className="text-xs font-bold text-red-400 uppercase tracking-widest">Total Acumulado</p>
+          <p className="text-2xl font-black text-red-600">${totalGastos.toLocaleString('es-MX')}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Formulario */}
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 h-fit">
+          <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
+            <PlusCircle className="text-blue-500" size={20}/> Nuevo Registro
+          </h3>
+          <form onSubmit={agregarGasto} className="space-y-4">
+            <div>
+              <label className="text-xs font-black text-slate-400 uppercase ml-1">Concepto</label>
+              <input type="text" placeholder="Ej. Gasolina Ford Ranger" className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition"
+                value={nuevoGasto.concepto} onChange={e => setNuevoGasto({...nuevoGasto, concepto: e.target.value})}/>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-black text-slate-400 uppercase ml-1">Monto ($)</label>
+                <input type="number" placeholder="0.00" className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition font-bold"
+                  value={nuevoGasto.monto} onChange={e => setNuevoGasto({...nuevoGasto, monto: e.target.value})}/>
+              </div>
+              <div>
+                <label className="text-xs font-black text-slate-400 uppercase ml-1">CategorÃ­a</label>
+                <select className="w-full p-3 bg-slate-50 rounded-xl outline-none"
+                  value={nuevoGasto.categoria} onChange={e => setNuevoGasto({...nuevoGasto, categoria: e.target.value})}>
+                  <option value="Materiales">Materiales</option>
+                  <option value="Combustible">Combustible</option>
+                  <option value="ViÃ¡ticos">ViÃ¡ticos</option>
+                  <option value="Herramientas">Herramientas</option>
+                </select>
+              </div>
+            </div>
+            <button type="submit" className="w-full bg-slate-900 text-white p-4 rounded-2xl font-black hover:bg-blue-600 transition-all shadow-lg shadow-slate-200">
+              Registrar Gasto
+            </button>
+          </form>
+        </div>
+
+        {/* Lista de Gastos */}
+        <div className="lg:col-span-2 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+            <Receipt size={18} className="text-slate-400"/>
+            <span className="font-bold text-slate-600">Historial de Movimientos</span>
+          </div>
+          <div className="divide-y divide-slate-50 max-h-[500px] overflow-y-auto">
+            {gastos.length === 0 ? (
+              <p className="p-10 text-center text-slate-400 italic">No hay gastos registrados todavÃ­a.</p>
+            ) : (
+              gastos.map(g => (
+                <div key={g.id} className="p-5 flex justify-between items-center hover:bg-slate-50 transition">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-slate-100 rounded-2xl text-slate-500">
+                      {g.categoria === 'Combustible' && <Fuel size={20} />}
+                      {g.categoria === 'Materiales' && <Hammer size={20} />}
+                      {g.categoria === 'ViÃ¡ticos' && <Utensils size={20} />}
+                      {g.categoria === 'Herramientas' && <DollarSign size={20} />}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-800">{g.concepto}</p>
+                      <p className="text-xs font-medium text-slate-400">{g.fecha} â€¢ {g.categoria}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <span className="font-black text-red-500 text-lg">-${g.monto.toLocaleString('es-MX')}</span>
+                    <button onClick={() => eliminarGasto(g.id)} className="text-slate-300 hover:text-red-500 transition">
+                      <Trash2 size={20}/>
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+========================================
+ARCHIVO: C:\Users\Ferna\Documents\Proyecto Gestión - copia\src\pages\Historial.jsx
+========================================
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  FileText, 
+  Search, 
+  Trash2, 
+  Edit3, 
+  CheckCircle2, 
+  Clock, 
+  ExternalLink 
+} from 'lucide-react';
+
+export default function Historial() {
+  const [presupuestos, setPresupuestos] = useState([]);
+  const [filtro, setFiltro] = useState('');
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const datos = JSON.parse(localStorage.getItem('erp_historial_presupuestos')) || [];
+    setPresupuestos(datos);
+  }, []);
+
+  const cambiarEstadoPago = (id) => {
+    const nuevos = presupuestos.map(p => {
+      if (p.id === id) {
+        // Si no tiene estado, lo ponemos como PAGADO. Si ya es PAGADO, lo regresamos a PENDIENTE.
+        return { ...p, estado: p.estado === 'PAGADO' ? 'PENDIENTE' : 'PAGADO' };
+      }
+      return p;
+    });
+    setPresupuestos(nuevos);
+    localStorage.setItem('erp_historial_presupuestos', JSON.stringify(nuevos));
+  };
+
+  const eliminar = (id) => {
+    if (!window.confirm("Â¿Seguro que quieres eliminar este presupuesto?")) return;
+    const nuevos = presupuestos.filter(p => p.id !== id);
+    setPresupuestos(nuevos);
+    localStorage.setItem('erp_historial_presupuestos', JSON.stringify(nuevos));
+  };
+
+  const filtrados = presupuestos.filter(p => 
+    p.cliente.toLowerCase().includes(filtro.toLowerCase()) || 
+    p.folio.toString().includes(filtro)
+  );
+
+  return (
+    <div className="p-8 space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tighter">Historial</h2>
+          <p className="text-slate-500 font-medium">Gestiona y convierte presupuestos en ingresos</p>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-3 text-slate-400" size={20}/>
+          <input 
+            className="pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl outline-none w-80 font-bold text-slate-700 shadow-sm"
+            placeholder="Buscar por cliente o folio..."
+            value={filtro}
+            onChange={(e) => setFiltro(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-slate-50 border-b border-slate-100">
+            <tr>
+              <th className="p-5 text-[10px] font-black text-slate-400 uppercase">Folio</th>
+              <th className="p-5 text-[10px] font-black text-slate-400 uppercase">Cliente</th>
+              <th className="p-5 text-[10px] font-black text-slate-400 uppercase text-center">Estado</th>
+              <th className="p-5 text-[10px] font-black text-slate-400 uppercase text-right">Total</th>
+              <th className="p-5 text-[10px] font-black text-slate-400 uppercase text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {filtrados.map((p) => (
+              <tr key={p.id} className="hover:bg-slate-50/50 transition">
+                <td className="p-5 font-black text-slate-900">#{p.folio}</td>
+                <td className="p-5">
+                  <p className="font-bold text-slate-700">{p.cliente}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">{p.fecha}</p>
+                </td>
+                <td className="p-5">
+                  <button 
+                    onClick={() => cambiarEstadoPago(p.id)}
+                    className={`mx-auto flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${
+                      p.estado === 'PAGADO' 
+                      ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' 
+                      : 'bg-amber-50 text-amber-600 border border-amber-100'
+                    }`}
+                  >
+                    {p.estado === 'PAGADO' ? <CheckCircle2 size={14}/> : <Clock size={14}/>}
+                    {p.estado === 'PAGADO' ? 'Pagado' : 'Pendiente'}
+                  </button>
+                </td>
+                <td className="p-5 text-right font-black text-slate-900">
+                  ${p.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                </td>
+                <td className="p-5 text-right space-x-2">
+                  <button onClick={() => navigate('/presupuestos', { state: { editando: p }})} className="p-2 text-slate-400 hover:text-blue-600 transition"><Edit3 size={18}/></button>
+                  <button onClick={() => eliminar(p.id)} className="p-2 text-slate-400 hover:text-red-500 transition"><Trash2 size={18}/></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+========================================
+ARCHIVO: C:\Users\Ferna\Documents\Proyecto Gestión - copia\src\pages\Presupuestos.jsx
+========================================
+import React, { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Plus, Trash2, Lock, AlertTriangle, CalendarDays, UserX } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+export default function Presupuestos() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const editandoData = location.state?.editando;
+  const primerInputRef = useRef(null);
+
+  const [clientes, setClientes] = useState([]);
+  const [conceptos, setConceptos] = useState(editandoData?.conceptos || [{ descripcion: '', cantidad: 1, precio: 0 }]);
+  const [seleccion, setSeleccion] = useState({ clienteId: '' });
+  const [config, setConfig] = useState({});
+  const [datosExtra, setDatosExtra] = useState({ 
+    numPresupuesto: editandoData?.folio || 1, 
+    diasVigencia: editandoData?.diasVigencia || '30', 
+    preparadoPor: editandoData?.preparadoPor || '' 
+  });
+
+  useEffect(() => {
+    const clientesGuardados = JSON.parse(localStorage.getItem('erp_clientes')) || [];
+    const empresaGuardada = JSON.parse(localStorage.getItem('erp_datos_empresa')) || {};
+    const historial = JSON.parse(localStorage.getItem('erp_historial_presupuestos')) || [];
+    
+    const clientesProcesados = clientesGuardados
+      .filter(c => (c.status === 'ACTIVE' || !c.status) && (c.name || c.nombre))
+      .map(c => ({ ...c, name: c.name || c.nombre }));
+    
+    setClientes(clientesProcesados);
+    setConfig(empresaGuardada);
+
+    if (!editandoData) {
+      if (historial.length > 0) {
+        const ultimoFolio = Math.max(...historial.map(h => h.folio));
+        setDatosExtra(prev => ({ ...prev, numPresupuesto: ultimoFolio + 1 }));
+      }
+    } else {
+      const cliente = clientesProcesados.find(c => c.name === editandoData.cliente);
+      if (cliente) setSeleccion({ clienteId: cliente.id });
+    }
+    if (primerInputRef.current) primerInputRef.current.focus();
+  }, [editandoData]);
+
+  const seleccionarTodo = (e) => e.target.select();
+
+  const agregarFila = () => {
+    setConceptos([...conceptos, { descripcion: '', cantidad: 1, precio: 0 }]);
+  };
+
+  // --- ATAJOS DE TECLADO ---
+  const manejarTabulacionExtra = (e, index, campo) => {
+    // Si presiona Enter en cualquier campo, o Tab en el Ãºltimo campo (precio)
+    if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey && campo === 'precio' && index === conceptos.length - 1)) {
+      e.preventDefault();
+      agregarFila();
+      // PequeÃ±o delay para que React renderice la nueva fila y podamos darle focus
+      setTimeout(() => {
+        const descripciones = document.querySelectorAll('.input-descripcion');
+        descripciones[index + 1]?.focus();
+      }, 10);
+    }
+  };
+
+  const actualizarFila = (index, campo, valor) => {
+    const nuevos = [...conceptos];
+    let valorFinal = valor;
+    if (campo === 'cantidad' || campo === 'precio') {
+      valorFinal = Math.max(0, parseFloat(valor) || 0);
+    }
+    nuevos[index][campo] = valorFinal;
+    setConceptos(nuevos);
+  };
+
+  const subtotal = conceptos.reduce((acc, c) => acc + (parseFloat(c.cantidad || 0) * parseFloat(c.precio || 0)), 0);
+  const total = subtotal * 1.16;
+
+  const guardarYGenerar = () => {
+    const clienteActivo = clientes.find(c => c.id == seleccion.clienteId);
+    if (!clienteActivo || !datosExtra.preparadoPor) return alert("Falta cliente o responsable.");
+
+    const conceptosLimpios = conceptos.filter(c => c.descripcion.trim() !== "" && c.cantidad > 0);
+    const totalLimpio = conceptosLimpios.reduce((acc, c) => acc + (c.cantidad * c.precio), 0) * 1.16;
+
+    const doc = new jsPDF();
+    const hoy = new Date().toLocaleDateString('es-MX');
+    const fechaVenceObj = new Date();
+    fechaVenceObj.setDate(fechaVenceObj.getDate() + parseInt(datosExtra.diasVigencia));
+    const fechaVence = fechaVenceObj.toLocaleDateString('es-MX');
+
+    doc.setFontSize(22);
+    doc.setFont(undefined, 'bold');
+    doc.text(config.tituloDocumento || "PRESUPUESTO", 14, 25);
+    doc.setFontSize(14);
+    doc.text(config.especialidad || "ELECTRICO", 14, 32);
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.text(config.nombre || "Servicios ElÃ©ctricos", 14, 42);
+    doc.text(config.direccion || "DirecciÃ³n no configurada", 14, 47);
+    doc.text(`Tel: ${config.telefono || ""}`, 14, 52);
+
+    autoTable(doc, {
+      startY: 20, margin: { left: 130 },
+      body: [
+        ["Fecha:", hoy],
+        ["Folio:", datosExtra.numPresupuesto],
+        ["Vence:", fechaVence],
+        ["AtendiÃ³:", datosExtra.preparadoPor]
+      ],
+      theme: 'plain', styles: { fontSize: 9 }
+    });
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.text("PRESUPUESTO PARA:", 14, 70);
+    doc.setFont(undefined, 'normal');
+    doc.text(`${clienteActivo.name}`, 14, 77);
+    doc.text(`RFC: ${clienteActivo.RFC || 'N/A'}`, 14, 82);
+
+    autoTable(doc, {
+      startY: 90,
+      head: [['CANT.', 'DESCRIPCIÃ“N', 'UNITARIO', 'IMPORTE']],
+      body: conceptosLimpios.map(c => [
+        c.cantidad, 
+        c.descripcion, 
+        `$${parseFloat(c.precio).toLocaleString('es-MX', {minimumFractionDigits:2})}`,
+        `$${(c.cantidad * c.precio).toLocaleString('es-MX', {minimumFractionDigits:2})}`
+      ]),
+      theme: 'grid',
+      headStyles: { fillColor: [0, 0, 0] },
+      columnStyles: { 0: { halign: 'center' }, 2: { halign: 'right' }, 3: { halign: 'right' } }
+    });
+
+    const finalY = doc.lastAutoTable.finalY + 15;
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text(`TOTAL (IVA Inc.): $${totalLimpio.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`, 120, finalY);
+
+    const nuevoRegistro = {
+      id: editandoData?.id || Date.now(),
+      folio: datosExtra.numPresupuesto,
+      fecha: hoy,
+      vencimiento: fechaVence,
+      cliente: clienteActivo.name,
+      total: totalLimpio,
+      conceptos: conceptosLimpios,
+      preparadoPor: datosExtra.preparadoPor,
+      diasVigencia: datosExtra.diasVigencia
+    };
+
+    let historial = JSON.parse(localStorage.getItem('erp_historial_presupuestos')) || [];
+    if (editandoData) {
+      historial = historial.map(h => h.id === editandoData.id ? nuevoRegistro : h);
+    } else {
+      historial = [nuevoRegistro, ...historial];
+    }
+
+    localStorage.setItem('erp_historial_presupuestos', JSON.stringify(historial));
+    doc.save(`Presupuesto_${datosExtra.numPresupuesto}.pdf`);
+    navigate('/historial');
+  };
+
+  return (
+    <div className="p-8 space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tighter">CotizaciÃ³n</h2>
+        <button onClick={guardarYGenerar} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-blue-700 transition shadow-lg">
+          Generar y Guardar
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="lg:col-span-1 space-y-6">
+          <div className="bg-white p-6 rounded-3xl border border-slate-200">
+            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-2">Folio</label>
+            <div className="bg-slate-900 p-4 rounded-2xl flex justify-between items-center mb-6">
+              <p className="text-2xl font-black text-white">{datosExtra.numPresupuesto}</p>
+              <Lock size={18} className="text-blue-400 opacity-50"/>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Cliente</label>
+                <select className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold outline-none" value={seleccion.clienteId} onChange={(e) => setSeleccion({...seleccion, clienteId: e.target.value})}>
+                  <option value="">Seleccionar...</option>
+                  {clientes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Validez</label>
+                <div className="relative">
+                    <CalendarDays className="absolute left-3 top-3 text-slate-400" size={18}/>
+                    <select 
+                      className="w-full p-3 pl-10 bg-slate-50 rounded-xl border border-slate-100 font-bold outline-none appearance-none" 
+                      value={datosExtra.diasVigencia} 
+                      onChange={e => setDatosExtra({...datosExtra, diasVigencia: e.target.value})}
+                    >
+                      <option value="30">30 DÃ­as</option>
+                      <option value="15">15 DÃ­as</option>
+                      <option value="7">7 DÃ­as</option>
+                    </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">AtendiÃ³</label>
+                <input 
+                  className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold outline-none" 
+                  value={datosExtra.preparadoPor} 
+                  onChange={e => setDatosExtra({...datosExtra, preparadoPor: e.target.value})}
+                  onFocus={seleccionarTodo}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="lg:col-span-3 bg-white p-6 rounded-3xl border border-slate-200 min-h-[400px]">
+          <div className="space-y-3">
+            {conceptos.map((c, i) => (
+              <div key={i} className="grid grid-cols-12 gap-3 items-center">
+                <input 
+                  type="number" className="col-span-1 p-3 bg-slate-50 rounded-xl text-center font-bold outline-none" 
+                  value={c.cantidad} onChange={(e) => actualizarFila(i, 'cantidad', e.target.value)}
+                  onFocus={seleccionarTodo}
+                  onKeyDown={(e) => manejarTabulacionExtra(e, i, 'cantidad')}
+                />
+                <input 
+                  className="input-descripcion col-span-8 p-3 bg-slate-50 rounded-xl outline-none" 
+                  placeholder="DescripciÃ³n del servicio" value={c.descripcion} 
+                  onChange={(e) => actualizarFila(i, 'descripcion', e.target.value)} 
+                  onKeyDown={(e) => manejarTabulacionExtra(e, i, 'descripcion')}
+                />
+                <input 
+                  type="number" className="col-span-2 p-3 bg-slate-50 rounded-xl font-bold text-right outline-none" 
+                  value={c.precio} onChange={(e) => actualizarFila(i, 'precio', e.target.value)}
+                  onFocus={seleccionarTodo}
+                  onKeyDown={(e) => manejarTabulacionExtra(e, i, 'precio')}
+                />
+                <button className="col-span-1 text-slate-300 hover:text-red-500 flex justify-center" onClick={() => setConceptos(conceptos.filter((_, idx) => idx !== i))}>
+                  <Trash2 size={18}/>
+                </button>
+              </div>
+            ))}
+            <button onClick={agregarFila} className="text-blue-600 font-bold p-2 flex items-center gap-2 mt-4">
+              <Plus size={18}/> Agregar LÃ­nea
+            </button>
+          </div>
+          <div className="mt-10 text-right border-t pt-6">
+            <p className="text-5xl font-black text-slate-900">${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">IVA Incluido (16%)</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
