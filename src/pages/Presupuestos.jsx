@@ -340,45 +340,46 @@ export default function Presupuestos({ session }) {
               </div>
 
               {conceptos.map((c, i) => (
-                <div key={i} className="flex flex-col md:flex-row gap-2 bg-slate-50 md:bg-transparent p-3 md:p-0 rounded-xl md:rounded-none">
-                  <div className="flex md:contents gap-2">
-                    <input 
-                      type="number" 
-                      placeholder="Cant" 
-                      className="w-24 md:w-20 p-3 bg-white md:bg-slate-50 rounded-xl outline-none border border-slate-100 font-bold text-center" 
-                      value={c.cantidad} 
-                      onChange={(e) => actualizarFila(i, 'cantidad', e.target.value)} 
-                      onFocus={seleccionarTodo}
-                      onKeyDown={(e) => manejarTabulacionExtra(e, i, 'cantidad')}
-                    />
-                    <input 
-                      type="text" 
-                      placeholder="Descripción detallada..." 
-                      className="input-descripcion flex-1 p-3 bg-white md:bg-slate-50 rounded-xl outline-none border border-slate-100 font-medium" 
-                      value={c.descripcion} 
-                      onChange={(e) => actualizarFila(i, 'descripcion', e.target.value)} 
-                      onKeyDown={(e) => manejarTabulacionExtra(e, i, 'descripcion')}
-                    />
-                  </div>
-                  <div className="flex gap-2 mt-2 md:mt-0">
-                    <input 
-                      type="number" 
-                      placeholder="Precio" 
-                      className="flex-1 md:w-32 p-3 bg-white md:bg-slate-50 rounded-xl outline-none border border-slate-100 text-right font-bold text-slate-700" 
-                      value={c.precio} 
-                      onChange={(e) => actualizarFila(i, 'precio', e.target.value)} 
-                      onFocus={seleccionarTodo}
-                      onKeyDown={(e) => manejarTabulacionExtra(e, i, 'precio')}
-                    />
-                    <button 
-                      onClick={() => eliminarFila(i)} 
-                      className="w-12 flex justify-center items-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition"
-                    >
-                      <Trash2 size={20}/>
-                    </button>
-                  </div>
-                </div>
-              ))}
+  <div key={i} className="bg-slate-50 p-4 rounded-2xl mb-4 border border-slate-100 shadow-sm">
+    <div className="flex gap-2 mb-3">
+      {/* Fila superior: Cantidad y Descripción */}
+      <input 
+        type="number" 
+        placeholder="Cant" 
+        className="w-20 p-3 bg-white rounded-xl outline-none border border-slate-200 font-bold text-center" 
+        value={c.cantidad} 
+        onChange={(e) => actualizarFila(i, 'cantidad', e.target.value)} 
+      />
+      <input 
+        type="text" 
+        placeholder="Descripción..." 
+        className="input-descripcion flex-1 p-3 bg-white rounded-xl outline-none border border-slate-200 font-medium" 
+        value={c.descripcion} 
+        onChange={(e) => actualizarFila(i, 'descripcion', e.target.value)} 
+        onKeyDown={(e) => manejarTabulacionExtra(e, i, 'descripcion')}
+      />
+    </div>
+    
+    {/* Fila inferior: Precio y Botón eliminar */}
+    <div className="flex gap-2">
+      <input 
+        type="number" 
+        placeholder="Precio" 
+        className="flex-1 p-3 bg-white rounded-xl outline-none border border-slate-200 text-right font-bold text-slate-700" 
+        value={c.precio} 
+        onChange={(e) => actualizarFila(i, 'precio', e.target.value)} 
+        onFocus={seleccionarTodo}
+        onKeyDown={(e) => manejarTabulacionExtra(e, i, 'precio')}
+      />
+      <button 
+        onClick={() => eliminarFila(i)} 
+        className="w-14 flex justify-center items-center text-red-400 bg-red-50 hover:bg-red-100 rounded-xl transition"
+      >
+        <Trash2 size={20}/>
+      </button>
+    </div>
+  </div>
+))}
             </div>
 
             <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
