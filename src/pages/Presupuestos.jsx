@@ -340,32 +340,31 @@ export default function Presupuestos({ session }) {
               </div>
 
               {conceptos.map((c, i) => (
-  <div key={i} className="bg-slate-50 p-4 rounded-2xl mb-4 border border-slate-100 shadow-sm">
-    <div className="flex gap-2 mb-3">
-      {/* Fila superior: Cantidad y Descripción */}
+  <div key={i} className="bg-slate-50 p-4 rounded-2xl mb-4 border border-slate-100 shadow-sm w-full overflow-hidden">
+    {/* Agregué 'min-w-0' al contenedor flex y a los inputs */}
+    <div className="flex gap-2 mb-3 min-w-0">
       <input 
         type="number" 
         placeholder="Cant" 
-        className="w-20 p-3 bg-white rounded-xl outline-none border border-slate-200 font-bold text-center" 
+        className="w-16 p-3 bg-white rounded-xl outline-none border border-slate-200 font-bold text-center flex-shrink-0" 
         value={c.cantidad} 
         onChange={(e) => actualizarFila(i, 'cantidad', e.target.value)} 
       />
       <input 
         type="text" 
         placeholder="Descripción..." 
-        className="input-descripcion flex-1 p-3 bg-white rounded-xl outline-none border border-slate-200 font-medium" 
+        className="input-descripcion flex-1 p-3 bg-white rounded-xl outline-none border border-slate-200 font-medium min-w-0" 
         value={c.descripcion} 
         onChange={(e) => actualizarFila(i, 'descripcion', e.target.value)} 
         onKeyDown={(e) => manejarTabulacionExtra(e, i, 'descripcion')}
       />
     </div>
     
-    {/* Fila inferior: Precio y Botón eliminar */}
     <div className="flex gap-2">
       <input 
         type="number" 
         placeholder="Precio" 
-        className="flex-1 p-3 bg-white rounded-xl outline-none border border-slate-200 text-right font-bold text-slate-700" 
+        className="flex-1 p-3 bg-white rounded-xl outline-none border border-slate-200 text-right font-bold text-slate-700 min-w-0" 
         value={c.precio} 
         onChange={(e) => actualizarFila(i, 'precio', e.target.value)} 
         onFocus={seleccionarTodo}
@@ -373,7 +372,7 @@ export default function Presupuestos({ session }) {
       />
       <button 
         onClick={() => eliminarFila(i)} 
-        className="w-14 flex justify-center items-center text-red-400 bg-red-50 hover:bg-red-100 rounded-xl transition"
+        className="w-14 flex justify-center items-center text-red-400 bg-red-50 hover:bg-red-100 rounded-xl transition flex-shrink-0"
       >
         <Trash2 size={20}/>
       </button>
