@@ -11,35 +11,54 @@ export default function Presupuestos({ session }) {
 
   const [clientes, setClientes] = useState([]);
   const [cargando, setCargando] = useState(false);
-  const [config, setConfig] = useState({});
+  
+  const [config, setConfig] = useState({
+    tituloDocumento: 'FACTURA',
+    especialidad: '',
+    nombre: '',
+    direccion: '',
+    telefono: '',
+    logo: null,
+    banco: '',
+    cuentaNombre: '',
+    cuentaNumero: '',
+    condiciones: 'Se solicitará el 50% de anticipo antes del comienzo de la obra. El presupuesto tiene una vigencia de 15 días.',
+    sitioWeb: ''
+  });
 
-  // Estados del formulario general
-  const [ventaId, setVentaId] = useState(null); // Nuevo: para saber si editamos
+  const [ventaId, setVentaId] = useState(null);
   const [clienteSeleccionado, setClienteSeleccionado] = useState('');
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
   const [metodoPago, setMetodoPago] = useState('Efectivo');
-  const [estado, setEstado] = useState('pendiente'); // Nuevo: Pendiente o Pagado
+  const [estado, setEstado] = useState('pendiente');
+  const [incluirIva, setIncluirIva] = useState(false);
 
-  // Estado de las líneas de la cotización
-  const [conceptos, setConceptos] = useState([
-    { cantidad: 1, descripcion: '', precio: '' }
-  ]);
+  const [conceptos, setConceptos] = useState([{ cantidad: 1, descripcion: '', precio: '' }]);
 
   useEffect(() => {
-    // 1. Cargar datos base (clientes y configuración)
     const fetchDatosBase = async () => {
       const { data } = await supabase.from('clientes').select('nombre').order('nombre');
       if (data) setClientes(data);
 
       const { data: cfg } = await supabase.from('configuracion').select('*').eq('user_id', session.user.id).single();
-      if (cfg) setConfig({
-        tituloDocumento: cfg.titulo_documento, especialidad: cfg.especialidad,
-        nombre: cfg.nombre, direccion: cfg.direccion, telefono: cfg.telefono
-      });
+      if (cfg) {
+        setConfig({
+          tituloDocumento: cfg.titulo_documento || 'FACTURA',
+          especialidad: cfg.especialidad || '',
+          nombre: cfg.nombre || '',
+          direccion: cfg.direccion || '',
+          telefono: cfg.telefono || '',
+          logo: cfg.logo || null,
+          banco: cfg.banco || 'Por definir en configuración',
+          cuentaNombre: cfg.cuenta_nombre || 'Por definir en configuración',
+          cuentaNumero: cfg.cuenta_numero || 'Por definir en configuración',
+          condiciones: cfg.condiciones || 'Se solicitará el 50% de anticipo antes del comienzo de la obra. El presupuesto tiene una vigencia de 15 días.',
+          sitioWeb: cfg.sitio_web || '@tuempresa'
+        });
+      }
     };
     fetchDatosBase();
 
-// 2. RECIBIR DATOS DEL HISTORIAL (Desglose Inteligente para Formatos Viejos y Nuevos)
     if (location.state?.ventaEditar) {
       const v = location.state.ventaEditar;
       setVentaId(v.id);
@@ -51,39 +70,25 @@ export default function Presupuestos({ session }) {
       if (v.descripcion) {
         const conceptosDesglosados = v.descripcion.split(' | ').map(item => {
           item = item.trim();
-          // Expresión regular que soporta formato viejo "2x Cable" y nuevo "2x Cable ($150)"
           const match = item.match(/^(\d+)x\s+(.+?)(?:\s+\(\$([\d.]+)\))?$/);
-          
           if (match) {
             return {
               cantidad: Number(match[1]),
               descripcion: match[2].trim(),
-              precio: match[3] ? Number(match[3]) : '' // Si no tiene precio (formato viejo), lo deja en blanco para que lo llenes
+              precio: match[3] ? Number(match[3]) : '' 
             };
           }
-          // Si por alguna razón el texto está súper raro, lo mete todo como descripción sin romper la app
           return { cantidad: 1, descripcion: item, precio: '' };
         });
-        
         setConceptos(conceptosDesglosados.length > 0 ? conceptosDesglosados : [{ cantidad: 1, descripcion: '', precio: '' }]);
       }
     }
   }, [location.state, session.user.id]);
 
-  // ==========================================
-  // FUNCIONES DE INTERFAZ Y ATAJOS DE TECLADO
-  // ==========================================
   const seleccionarTodo = (e) => e.target.select();
-
-  const agregarFila = () => {
-    setConceptos([...conceptos, { cantidad: 1, descripcion: '', precio: '' }]);
-  };
-
-  const eliminarFila = (index) => {
-    const nuevosConceptos = conceptos.filter((_, i) => i !== index);
-    setConceptos(nuevosConceptos);
-  };
-
+  const agregarFila = () => setConceptos([...conceptos, { cantidad: 1, descripcion: '', precio: '' }]);
+  const eliminarFila = (index) => setConceptos(conceptos.filter((_, i) => i !== index));
+  
   const actualizarFila = (index, campo, valor) => {
     const nuevosConceptos = [...conceptos];
     nuevosConceptos[index][campo] = valor;
@@ -96,21 +101,17 @@ export default function Presupuestos({ session }) {
       agregarFila();
       setTimeout(() => {
         const descripciones = document.querySelectorAll('.input-descripcion');
-        if (descripciones[index + 1]) {
-          descripciones[index + 1].focus();
-        }
+        if (descripciones[index + 1]) descripciones[index + 1].focus();
       }, 10);
     }
   };
 
-  const total = conceptos.reduce((acc, c) => {
-    const cant = Number(c.cantidad) || 0;
-    const prec = Number(c.precio) || 0;
-    return acc + (cant * prec);
-  }, 0);
+  const subtotal = conceptos.reduce((acc, c) => acc + ((Number(c.cantidad) || 0) * (Number(c.precio) || 0)), 0);
+  const montoIva = incluirIva ? subtotal * 0.16 : 0;
+  const totalNeto = subtotal + montoIva;
 
   // ==========================================
-  // 1. GENERAR DOCUMENTO PDF (Formato Original tuyo)
+  // GENERACIÓN DE PDF MULTI-PÁGINA (Posiciones Constantes)
   // ==========================================
   const generarPDF = () => {
     const conceptosLimpios = conceptos.filter(c => c.descripcion.trim() !== "" && c.cantidad > 0);
@@ -118,104 +119,165 @@ export default function Presupuestos({ session }) {
 
     const doc = new jsPDF();
     const hoy = fecha.split('-').reverse().join('/');
-    
-    doc.setFontSize(22);
+    const colorAcento = [22, 65, 94]; 
+    const colorTexto = [70, 70, 70];
+    const colorGrisClaro = [245, 246, 248];
+
+    // 1. HEADER (Solo en la primera página)
+    if (config.logo) {
+      doc.addImage(config.logo, 'PNG', 14, 12, 30, 30, '', 'FAST');
+    } else {
+      doc.setFontSize(20);
+      doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
+      doc.setFont(undefined, 'bold');
+      doc.text(config.nombre || "MI EMPRESA", 14, 25);
+    }
+
+    doc.setFontSize(28);
+    doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
     doc.setFont(undefined, 'bold');
-    doc.text(config.tituloDocumento || "PRESUPUESTO", 14, 25);
-    
-    doc.setFontSize(14);
-    doc.text(config.especialidad || "SERVICIOS PROFESIONALES", 14, 32);
+    doc.text((config.tituloDocumento || "FACTURA").toUpperCase(), 196, 25, { align: "right", letterSpacing: 2 });
+
+    // ZONA ROSA (Despegada del Logo)
+    const infoY = 52; 
+    doc.setFontSize(11);
+    doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
+    doc.setFont(undefined, 'bold');
+    doc.text("INFORMACIÓN DEL CLIENTE", 14, infoY);
     
     doc.setFontSize(9);
+    doc.setTextColor(colorTexto[0], colorTexto[1], colorTexto[2]);
     doc.setFont(undefined, 'normal');
-    doc.text(config.nombre || "Mi Empresa", 14, 42);
-    doc.text(config.direccion || "Dirección no configurada", 14, 47);
-    doc.text(`Tel: ${config.telefono || "No registrado"}`, 14, 52);
+    doc.text(`Nombre:  ${clienteSeleccionado || 'Público en General'}`, 14, infoY + 7);
 
-    autoTable(doc, {
-      startY: 20, 
-      margin: { left: 130 },
-      body: [
-        ["Fecha:", hoy],
-        ["Método de Pago:", metodoPago]
-      ],
-      theme: 'plain', 
-      styles: { fontSize: 9 }
-    });
-
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont(undefined, 'bold');
-    doc.text("PRESUPUESTO PARA:", 14, 70);
-    doc.setFont(undefined, 'normal');
-    doc.text(`${clienteSeleccionado || 'Público en General'}`, 14, 77);
+    const numeroFactura = ventaId ? String(ventaId).padStart(5, '0') : 'BORRADOR';
+    doc.text(`FACTURA: N° ${numeroFactura}`, 196, infoY, { align: "right" });
+    doc.text(`FECHA: ${hoy}`, 196, infoY + 5, { align: "right" });
+    doc.text(`PAGO: ${metodoPago.toUpperCase()}`, 196, infoY + 10, { align: "right" });
 
+    // 2. TABLA DE CONCEPTOS (Con margen inferior estricto para evitar sobreescritura)
     autoTable(doc, {
-      startY: 90,
-      head: [['CANT.', 'DESCRIPCIÓN', 'UNITARIO', 'IMPORTE']],
+      startY: 75, 
+      margin: { left: 14, right: 14, bottom: 95 }, // <- EL SECRETO: 95mm de margen inferior reservado siempre
+      head: [['DESCRIPCIÓN', 'CANT.', 'PRECIO', 'SUBTOTAL']],
       body: conceptosLimpios.map(c => [
-        c.cantidad, 
         c.descripcion, 
-        `$${parseFloat(c.precio).toLocaleString('es-MX', {minimumFractionDigits:2})}`,
+        c.cantidad, 
+        `$${Number(c.precio).toLocaleString('es-MX', {minimumFractionDigits:2})}`,
         `$${(c.cantidad * c.precio).toLocaleString('es-MX', {minimumFractionDigits:2})}`
       ]),
-      theme: 'grid',
-      headStyles: { fillColor: [0, 0, 0] },
-      columnStyles: { 0: { halign: 'center' }, 2: { halign: 'right' }, 3: { halign: 'right' } }
+      theme: 'striped', 
+      styles: { fontSize: 9, cellPadding: 4, textColor: colorTexto },
+      headStyles: { fillColor: colorAcento, textColor: [255, 255, 255], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: colorGrisClaro },
+      columnStyles: { 
+        0: { cellWidth: 92 }, 
+        1: { halign: 'center', cellWidth: 20 }, 
+        2: { halign: 'right', cellWidth: 35 }, 
+        3: { halign: 'right', cellWidth: 35 } 
+      },
+      // Esto dibuja el pie de página en TODAS las hojas automáticamente
+      didDrawPage: function (data) {
+        doc.setFontSize(9);
+        doc.setTextColor(colorTexto[0], colorTexto[1], colorTexto[2]);
+        doc.setFont(undefined, 'normal');
+        doc.setDrawColor(220, 220, 220);
+        doc.setLineWidth(0.3);
+        doc.line(14, 280, 196, 280); 
+        const footerText = `${config.telefono || "Sin teléfono"}    |    ${config.sitioWeb || "@tuempresa"}    |    ${config.direccion || "Sin dirección"}`;
+        doc.text(footerText, 105, 287, { align: "center" });
+        // Número de página
+        doc.setFontSize(8);
+        doc.text(`Página ${data.pageNumber}`, 196, 287, { align: "right" });
+      }
     });
 
-    const finalY = doc.lastAutoTable.finalY + 15;
-    
-    doc.setFontSize(12);
-    doc.setFont(undefined, 'bold');
-    doc.text(`TOTAL: $${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`, 120, finalY);
+    // ========================================================
+    // COORDENADAS CONSTANTES PARA LA ÚLTIMA PÁGINA
+    // ========================================================
+    // Como bloqueamos 95mm de margen inferior, sabemos que la tabla NUNCA pasará de Y=202.
+    // Esto nos permite usar coordenadas fijas y perfectas para el final de la última hoja.
+    const baseY = 210;  // Para Zonas Azul (Banco) y Verde (Totales)
+    const termsY = 245; // Para Zona Roja (Términos)
 
-    doc.save(`Cotizacion_${clienteSeleccionado || 'General'}_${hoy.replace(/\//g, '-')}.pdf`);
+    // ZONA VERDE: TOTALES (Derecha)
+    doc.setFontSize(10);
+    doc.setTextColor(colorTexto[0], colorTexto[1], colorTexto[2]);
+    doc.text("Subtotal", 155, baseY, { align: "right" });
+    doc.text(`$${subtotal.toLocaleString('es-MX', {minimumFractionDigits:2})}`, 196, baseY, { align: "right" });
+    
+    let totalBoxY = baseY + 6;
+    if (incluirIva) {
+      doc.text("IVA (16%)", 155, baseY + 7, { align: "right" });
+      doc.text(`$${montoIva.toLocaleString('es-MX', {minimumFractionDigits:2})}`, 196, baseY + 7, { align: "right" });
+      totalBoxY += 7;
+    }
+
+    doc.setFillColor(colorAcento[0], colorAcento[1], colorAcento[2]);
+    doc.roundedRect(135, totalBoxY - 5, 61, 9, 2, 2, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont(undefined, 'bold');
+    doc.text("TOTAL", 140, totalBoxY + 1);
+    doc.text(`$${totalNeto.toLocaleString('es-MX', {minimumFractionDigits:2})}`, 194, totalBoxY + 1, { align: "right" });
+
+    // ZONA AZUL: INFORMACIÓN DE PAGO (Izquierda)
+    doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.text("INFORMACIÓN DE PAGO", 14, baseY);
+
+    doc.setFontSize(9);
+    doc.setTextColor(colorTexto[0], colorTexto[1], colorTexto[2]);
+    doc.setFont(undefined, 'bold'); doc.text("Banco:", 14, baseY + 7);
+    doc.setFont(undefined, 'normal'); doc.text(config.banco, 35, baseY + 7);
+    doc.setFont(undefined, 'bold'); doc.text("Nombre:", 14, baseY + 13);
+    doc.setFont(undefined, 'normal'); doc.text(config.cuentaNombre, 35, baseY + 13);
+    doc.setFont(undefined, 'bold'); doc.text("Cuenta:", 14, baseY + 19);
+    doc.setFont(undefined, 'normal'); doc.text(config.cuentaNumero, 35, baseY + 19);
+
+    // ZONA ROJA: TÉRMINOS Y CONDICIONES (Izquierda, más abajo)
+    doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.text("TÉRMINOS Y CONDICIONES", 14, termsY);
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont(undefined, 'normal');
+    const terminosFormateados = doc.splitTextToSize(config.condiciones, 100); 
+    doc.text(terminosFormateados, 14, termsY + 6);
+
+    doc.save(`Factura_${clienteSeleccionado || 'General'}_${hoy.replace(/\//g, '-')}.pdf`);
   };
 
-  // ==========================================
-  // 2. GUARDAR / ACTUALIZAR EN SUPABASE
-  // ==========================================
   const guardarVenta = async () => {
     if (!clienteSeleccionado) return alert("Por favor selecciona o escribe el nombre de un cliente.");
-    if (total === 0) return alert("El presupuesto está en ceros. Agrega un precio válido.");
+    if (totalNeto === 0) return alert("El presupuesto está en ceros. Agrega un precio válido.");
 
     setCargando(true);
     try {
-      // Ahora guardamos el precio exacto para recuperarlo al editar sin errores matemáticos
       const descripcionCompleta = conceptos
         .filter(c => c.descripcion.trim() !== '')
         .map(c => `${c.cantidad}x ${c.descripcion} ($${c.precio || 0})`)
         .join(' | ');
 
+      const datosGuardar = {
+        cliente: clienteSeleccionado,
+        descripcion: descripcionCompleta,
+        monto: totalNeto,
+        fecha: fecha,
+        metodo_pago: metodoPago,
+        estado: estado
+      };
+
       if (ventaId) {
-        // MODO EDICIÓN
-        const { error } = await supabase
-          .from('ventas')
-          .update({
-            cliente: clienteSeleccionado,
-            descripcion: descripcionCompleta,
-            monto: total,
-            fecha: fecha,
-            metodo_pago: metodoPago,
-            estado: estado
-          })
-          .eq('id', ventaId);
+        const { error } = await supabase.from('ventas').update(datosGuardar).eq('id', ventaId);
         if (error) throw error;
         alert("Cotización actualizada correctamente.");
-        navigate('/historial'); // Volvemos al historial tras editar
+        navigate('/historial');
       } else {
-        // MODO NUEVO REGISTRO
-        const { error } = await supabase
-          .from('ventas')
-          .insert([{
-            user_id: session.user.id,
-            cliente: clienteSeleccionado,
-            descripcion: descripcionCompleta,
-            monto: total,
-            fecha: fecha,
-            metodo_pago: metodoPago,
-            estado: estado
-          }]);
+        const { error } = await supabase.from('ventas').insert([{ user_id: session.user.id, ...datosGuardar }]);
         if (error) throw error;
         alert("Cotización registrada exitosamente en tu historial.");
         setClienteSeleccionado('');
@@ -234,15 +296,15 @@ export default function Presupuestos({ session }) {
         <div>
           <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tighter uppercase flex items-center gap-2">
             <Calculator className="text-blue-600" /> 
-            {ventaId ? 'Editar Presupuesto' : 'Nuevo Presupuesto'}
+            {ventaId ? 'Editar Documento' : 'Nuevo Documento'}
           </h2>
-          <p className="text-slate-500 font-medium">Genera cotizaciones y regístralas como ventas</p>
+          <p className="text-slate-500 font-medium">Genera cotizaciones profesionales y regístralas</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         
-        {/* PANEL IZQUIERDO: Datos Generales */}
+        {/* PANEL IZQUIERDO */}
         <div className="xl:col-span-1 space-y-4">
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-5">
             <h3 className="font-bold text-slate-700 flex items-center gap-2 border-b border-slate-100 pb-3">
@@ -299,7 +361,6 @@ export default function Presupuestos({ session }) {
               </div>
             </div>
 
-            {/* SECTOR ESTADO DE PAGO (Pendiente/Pagado) INTEGRADITO EN EL DISEÑO */}
             <div className="pt-2">
               <label className="text-xs font-black text-slate-400 uppercase ml-1">Estado del Servicio</label>
               <div className="relative mt-1">
@@ -318,7 +379,7 @@ export default function Presupuestos({ session }) {
           </div>
         </div>
 
-        {/* PANEL DERECHO: Conceptos y Total */}
+        {/* PANEL DERECHO */}
         <div className="xl:col-span-2 space-y-4">
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
             <div className="flex justify-between items-center mb-6">
@@ -336,73 +397,94 @@ export default function Presupuestos({ session }) {
                 <div className="w-20">Cant.</div>
                 <div className="flex-1">Descripción del Servicio / Material</div>
                 <div className="w-32 text-right pr-4">Precio</div>
-                <div className="w-12"></div>
+                <div className="w-14"></div>
               </div>
 
               {conceptos.map((c, i) => (
-  <div key={i} className="bg-slate-50 p-4 rounded-2xl mb-4 border border-slate-100 shadow-sm w-full overflow-hidden">
-    {/* Agregué 'min-w-0' al contenedor flex y a los inputs */}
-    <div className="flex gap-2 mb-3 min-w-0">
-      <input 
-        type="number" 
-        placeholder="Cant" 
-        className="w-16 p-3 bg-white rounded-xl outline-none border border-slate-200 font-bold text-center flex-shrink-0" 
-        value={c.cantidad} 
-        onChange={(e) => actualizarFila(i, 'cantidad', e.target.value)} 
-      />
-      <input 
-        type="text" 
-        placeholder="Descripción..." 
-        className="input-descripcion flex-1 p-3 bg-white rounded-xl outline-none border border-slate-200 font-medium min-w-0" 
-        value={c.descripcion} 
-        onChange={(e) => actualizarFila(i, 'descripcion', e.target.value)} 
-        onKeyDown={(e) => manejarTabulacionExtra(e, i, 'descripcion')}
-      />
-    </div>
-    
-    <div className="flex gap-2">
-      <input 
-        type="number" 
-        placeholder="Precio" 
-        className="flex-1 p-3 bg-white rounded-xl outline-none border border-slate-200 text-right font-bold text-slate-700 min-w-0" 
-        value={c.precio} 
-        onChange={(e) => actualizarFila(i, 'precio', e.target.value)} 
-        onFocus={seleccionarTodo}
-        onKeyDown={(e) => manejarTabulacionExtra(e, i, 'precio')}
-      />
-      <button 
-        onClick={() => eliminarFila(i)} 
-        className="w-14 flex justify-center items-center text-red-400 bg-red-50 hover:bg-red-100 rounded-xl transition flex-shrink-0"
-      >
-        <Trash2 size={20}/>
-      </button>
-    </div>
-  </div>
-))}
+                <div key={i} className="bg-slate-50 p-4 rounded-2xl mb-4 border border-slate-100 shadow-sm w-full overflow-hidden">
+                  <div className="flex gap-2 mb-3 min-w-0">
+                    <input 
+                      type="number" 
+                      placeholder="Cant" 
+                      className="w-16 p-3 bg-white rounded-xl outline-none border border-slate-200 font-bold text-center flex-shrink-0" 
+                      value={c.cantidad} 
+                      onChange={(e) => actualizarFila(i, 'cantidad', e.target.value)} 
+                      onFocus={seleccionarTodo}
+                      onKeyDown={(e) => manejarTabulacionExtra(e, i, 'cantidad')}
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="Descripción..." 
+                      className="input-descripcion flex-1 p-3 bg-white rounded-xl outline-none border border-slate-200 font-medium min-w-0" 
+                      value={c.descripcion} 
+                      onChange={(e) => actualizarFila(i, 'descripcion', e.target.value)} 
+                      onKeyDown={(e) => manejarTabulacionExtra(e, i, 'descripcion')}
+                    />
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <input 
+                      type="number" 
+                      placeholder="Precio" 
+                      className="flex-1 p-3 bg-white rounded-xl outline-none border border-slate-200 text-right font-bold text-slate-700 min-w-0" 
+                      value={c.precio} 
+                      onChange={(e) => actualizarFila(i, 'precio', e.target.value)} 
+                      onFocus={seleccionarTodo}
+                      onKeyDown={(e) => manejarTabulacionExtra(e, i, 'precio')}
+                    />
+                    <button 
+                      onClick={() => eliminarFila(i)} 
+                      className="w-14 flex justify-center items-center text-red-400 bg-red-50 hover:bg-red-100 rounded-xl transition flex-shrink-0"
+                    >
+                      <Trash2 size={20}/>
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
 
-            <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
-              <div className="text-center md:text-left">
-                <p className="text-sm font-bold text-slate-400 uppercase">Total Estimado</p>
-                <p className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter">
-                  ${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                </p>
+            <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col items-end gap-4">
+              
+              <div className="w-full md:w-64 space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <div className="flex justify-between text-sm font-medium text-slate-500">
+                  <span>Subtotal</span>
+                  <span>${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                </div>
+                
+                <label className="flex items-center justify-between cursor-pointer group">
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="checkbox" 
+                      checked={incluirIva} 
+                      onChange={(e) => setIncluirIva(e.target.checked)}
+                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer border-slate-300"
+                    />
+                    <span className="text-sm font-bold text-slate-600 group-hover:text-slate-900 transition-colors">IVA (16%)</span>
+                  </div>
+                  <span className="text-sm font-medium text-slate-500">${montoIva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                </label>
+
+                <div className="pt-2 mt-2 border-t border-slate-200 flex justify-between items-center">
+                  <span className="font-black text-slate-800 uppercase">Total</span>
+                  <span className="text-2xl font-black text-blue-600 tracking-tighter">
+                    ${totalNeto.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
               </div>
 
-              {/* BOTONES ORIGINALES INTACTOS */}
-              <div className="flex flex-col sm:flex-row w-full md:w-auto gap-3">
+              <div className="flex flex-col sm:flex-row w-full md:w-auto gap-3 pt-4">
                 <button 
                   onClick={generarPDF}
-                  className="bg-slate-100 text-slate-700 px-6 py-4 rounded-2xl font-bold hover:bg-slate-200 transition flex justify-center items-center gap-2"
+                  className="bg-slate-800 text-white px-6 py-4 rounded-2xl font-bold hover:bg-slate-900 transition flex justify-center items-center gap-2 shadow-lg shadow-slate-800/20"
                 >
-                  <FileDown size={20} /> Generar PDF
+                  <FileDown size={20} /> Descargar Factura
                 </button>
                 <button 
                   onClick={guardarVenta}
                   disabled={cargando}
                   className="bg-blue-600 text-white px-6 py-4 rounded-2xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-500/30 flex justify-center items-center gap-2 disabled:opacity-50"
                 >
-                  <Save size={20} /> {cargando ? 'Guardando...' : (ventaId ? 'Actualizar Venta' : 'Registrar Venta')}
+                  <Save size={20} /> {cargando ? 'Guardando...' : (ventaId ? 'Actualizar Sistema' : 'Registrar Venta')}
                 </button>
               </div>
             </div>
