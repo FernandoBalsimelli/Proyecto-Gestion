@@ -8,21 +8,41 @@ export default function Dashboard({ session }) {
   const [gastos, setGastos] = useState([]);
   const [cargando, setCargando] = useState(true);
 
+  // Función para obtener los datos
+  const fetchData = async () => {
+    const [vData, gData] = await Promise.all([
+      supabase.from('ventas').select('*'),
+      supabase.from('gastos').select('*')
+    ]);
+    setVentas(vData.data || []);
+    setGastos(gData.data || []);
+    setCargando(false);
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      setCargando(true);
-      const [vData, gData] = await Promise.all([
-        supabase.from('ventas').select('*'),
-        supabase.from('gastos').select('*')
-      ]);
-      setVentas(vData.data || []);
-      setGastos(gData.data || []);
-      setCargando(false);
-    };
+    // 1. Carga inicial
     fetchData();
+
+    // 2. Configurar suscripción en tiempo real
+    const channel = supabase
+      .channel('dashboard-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ventas' }, () => {
+        console.log('Cambio en ventas detectado, actualizando...');
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'gastos' }, () => {
+        console.log('Cambio en gastos detectado, actualizando...');
+        fetchData();
+      })
+      .subscribe();
+
+    // 3. Limpiar suscripción al cerrar el componente
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  // Cálculos protegidos para evitar pantalla en blanco
+  // Cálculos
   const totalPagado = (ventas || []).filter(v => v.estado === 'pagado').reduce((acc, v) => acc + (Number(v.monto) || 0), 0);
   const totalPendiente = (ventas || []).filter(v => v.estado === 'pendiente').reduce((acc, v) => acc + (Number(v.monto) || 0), 0);
   const totalGastos = (gastos || []).reduce((acc, g) => acc + (Number(g.monto) || 0), 0);
