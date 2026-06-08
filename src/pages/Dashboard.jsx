@@ -23,7 +23,7 @@ export default function Dashboard({ session }) {
     // 1. Carga inicial
     fetchData();
 
-    // 2. Configurar suscripción en tiempo real
+
     const channel = supabase
       .channel('dashboard-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ventas' }, () => {
@@ -36,7 +36,7 @@ export default function Dashboard({ session }) {
       })
       .subscribe();
 
-    // 3. Limpiar suscripción al cerrar el componente
+
     return () => {
       supabase.removeChannel(channel);
     };

@@ -4,7 +4,7 @@ import { Search, Edit2, Trash2, FileText, CheckCircle, Clock } from 'lucide-reac
 import { supabase } from '../supabaseClient.js';
 
 export default function Historial({ session }) {
-  const navigate = useNavigate(); // <-- EL HOOK VA AQUÍ, DENTRO DEL COMPONENTE
+  const navigate = useNavigate(); 
   const [ventas, setVentas] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [cargando, setCargando] = useState(true);
@@ -31,7 +31,7 @@ export default function Historial({ session }) {
     }
   };
 
-  // Función para redirigir a Presupuestos con los datos cargados
+
   const cargarParaEditar = (venta) => {
     navigate('/presupuestos', { state: { ventaEditar: venta } });
   };

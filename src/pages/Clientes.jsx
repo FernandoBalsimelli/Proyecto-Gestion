@@ -8,7 +8,7 @@ export default function Clientes({ session }) {
   const [editandoId, setEditandoId] = useState(null);
   const [cargando, setCargando] = useState(false);
   
-  // Estado alineado exactamente con tu tabla SQL de Supabase
+
   const [formData, setFormData] = useState({
     nombre: '',
     telefono: '',
@@ -16,7 +16,7 @@ export default function Clientes({ session }) {
     direccion: ''
   });
 
-  // 1. CARGAR DATOS DESDE SUPABASE
+  // CARGAR DATOS DESDE SUPABASE
   const fetchClientes = async () => {
     try {
       const { data, error } = await supabase
@@ -39,7 +39,7 @@ export default function Clientes({ session }) {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // 2. GUARDAR O ACTUALIZAR CLIENTE EN SUPABASE
+  // GUARDAR O ACTUALIZAR CLIENTE EN SUPABASE
   const guardarCliente = async (e) => {
     e.preventDefault();
     setCargando(true);
@@ -65,7 +65,7 @@ export default function Clientes({ session }) {
 
         if (error) throw error;
       } else {
-        // Insertar nuevo registro (el user_id se requiere por tus políticas RLS)
+        // Insertar nuevo registro
         const { error } = await supabase
           .from('clientes')
           .insert([{
@@ -105,7 +105,7 @@ export default function Clientes({ session }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // 3. ELIMINAR CLIENTE EN SUPABASE
+  // ELIMINAR CLIENTE EN SUPABASE
   const eliminarCliente = async (id) => {
     if (window.confirm("¿Estás seguro de eliminar este registro?")) {
       try {

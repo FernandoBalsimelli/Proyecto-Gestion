@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './supabaseClient.js';
 import { Lock, Mail } from 'lucide-react';
-
-// Importamos tu Sidebar y todas tus pantallas reales
 import Sidebar from './components/Sidebar.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Presupuestos from './pages/Presupuestos.jsx';
@@ -52,9 +50,7 @@ export default function App() {
     );
   }
 
-  // =========================================================
-  // 1. PANTALLA DE LOGIN INTEGRADA
-  // =========================================================
+
   if (!session) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -116,20 +112,14 @@ export default function App() {
     );
   }
 
-  // =========================================================
-  // 2. SISTEMA PRINCIPAL (Con tus pantallas reales)
-  // =========================================================
+
   return (
 <div className="flex bg-slate-50 min-h-screen font-sans">
       
       {/* 1. EL MENÚ RESPONSIVO */}
       <Sidebar />
 
-      {/* 2. EL CONTENEDOR DE LAS PÁGINAS */}
-      {/* md:ml-64 = En PC deja espacio a la izquierda para el menú */}
-      {/* pt-16 md:pt-0 = En celular deja espacio arriba para la barra superior */}
       <div className="flex-1 md:ml-64 pt-16 md:pt-0 min-h-screen w-full overflow-x-hidden">
-        {/* Pasamos 'session' por si tus componentes necesitan el ID del usuario después */}
         <Routes>
           <Route path="/" element={<Dashboard session={session} />} />
           <Route path="/presupuestos" element={<Presupuestos session={session} />} />

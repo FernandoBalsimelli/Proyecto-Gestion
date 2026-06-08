@@ -110,9 +110,6 @@ export default function Presupuestos({ session }) {
   const montoIva = incluirIva ? subtotal * 0.16 : 0;
   const totalNeto = subtotal + montoIva;
 
-  // ==========================================
-  // GENERACIÓN DE PDF MULTI-PÁGINA (Posiciones Constantes)
-  // ==========================================
   const generarPDF = () => {
     const conceptosLimpios = conceptos.filter(c => c.descripcion.trim() !== "" && c.cantidad > 0);
     if (conceptosLimpios.length === 0) return alert("Agrega al menos un concepto válido para el PDF.");
@@ -123,7 +120,7 @@ export default function Presupuestos({ session }) {
     const colorTexto = [70, 70, 70];
     const colorGrisClaro = [245, 246, 248];
 
-    // 1. HEADER (Solo en la primera página)
+    //HEADER//
     if (config.logo) {
       doc.addImage(config.logo, 'PNG', 14, 12, 30, 30, '', 'FAST');
     } else {

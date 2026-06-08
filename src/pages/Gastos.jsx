@@ -6,7 +6,7 @@ export default function Gastos({ session }) {
   const [gastos, setGastos] = useState([]);
   const [cargando, setCargando] = useState(false);
 
-  // Alineado con las columnas de tu tabla 'gastos' en Supabase
+
   const [nuevoGasto, setNuevoGasto] = useState({
     descripcion: '',
     categoria: 'Materiales',
@@ -15,7 +15,7 @@ export default function Gastos({ session }) {
     fecha: new Date().toISOString().split('T')[0]
   });
 
-  // 1. CARGAR GASTOS DE SUPABASE
+  // CARGAR GASTOS DE SUPABASE
   const fetchGastos = async () => {
     try {
       const { data, error } = await supabase
@@ -35,7 +35,7 @@ export default function Gastos({ session }) {
     fetchGastos();
   }, []);
 
-  // 2. GUARDAR GASTO EN SUPABASE
+  // GUARDAR GASTO EN SUPABASE
   const agregarGasto = async (e) => {
     e.preventDefault();
     if (!nuevoGasto.descripcion || !nuevoGasto.monto) {
@@ -73,7 +73,7 @@ export default function Gastos({ session }) {
     }
   };
 
-  // 3. ELIMINAR GASTO EN SUPABASE
+  // ELIMINAR GASTO EN SUPABASE
   const eliminarGasto = async (id) => {
     if (window.confirm("¿Seguro que deseas eliminar este gasto?")) {
       try {

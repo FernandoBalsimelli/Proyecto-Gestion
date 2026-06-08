@@ -10,7 +10,7 @@ export default function Finanzas({ session }) {
   // Estados del formulario
   const [descripcion, setDescripcion] = useState('');
   const [monto, setMonto] = useState('');
-  const [categoria, setCategoria] = useState('Materiales'); // <-- Añadido
+  const [categoria, setCategoria] = useState('Materiales'); 
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
@@ -36,7 +36,7 @@ export default function Finanzas({ session }) {
       const { error } = await supabase.from('gastos').insert([{
         user_id: session.user.id,
         descripcion,
-        categoria, // <-- Ahora se envía a Supabase
+        categoria, 
         monto: Number(monto),
         fecha
       }]);
