@@ -117,7 +117,7 @@ export default function App() {
 <div className="flex bg-slate-50 min-h-screen font-sans">
       
       {/* 1. EL MENÚ RESPONSIVO */}
-      <Sidebar />
+      <Sidebar session={session} />
 
       <div className="flex-1 md:ml-64 pt-16 md:pt-0 min-h-screen w-full overflow-x-hidden">
         <Routes>

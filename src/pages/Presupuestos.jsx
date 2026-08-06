@@ -13,7 +13,7 @@ export default function Presupuestos({ session }) {
   const [cargando, setCargando] = useState(false);
   
   const [config, setConfig] = useState({
-    tituloDocumento: 'FACTURA',
+    tituloDocumento: 'PRESUPUESTO',
     especialidad: '',
     nombre: '',
     direccion: '',
@@ -43,7 +43,7 @@ export default function Presupuestos({ session }) {
       const { data: cfg } = await supabase.from('configuracion').select('*').eq('user_id', session.user.id).single();
       if (cfg) {
         setConfig({
-          tituloDocumento: cfg.titulo_documento || 'FACTURA',
+          tituloDocumento: cfg.titulo_documento || 'PRESUPUESTO',
           especialidad: cfg.especialidad || '',
           nombre: cfg.nombre || '',
           direccion: cfg.direccion || '',
@@ -109,6 +109,7 @@ export default function Presupuestos({ session }) {
   const subtotal = conceptos.reduce((acc, c) => acc + ((Number(c.cantidad) || 0) * (Number(c.precio) || 0)), 0);
   const montoIva = incluirIva ? subtotal * 0.16 : 0;
   const totalNeto = subtotal + montoIva;
+  const tituloBoton = (config.tituloDocumento || 'PRESUPUESTO').toLowerCase().replace(/^./, (c) => c.toUpperCase());
 
   const generarPDF = () => {
     const conceptosLimpios = conceptos.filter(c => c.descripcion.trim() !== "" && c.cantidad > 0);
@@ -119,6 +120,7 @@ export default function Presupuestos({ session }) {
     const colorAcento = [22, 65, 94]; 
     const colorTexto = [70, 70, 70];
     const colorGrisClaro = [245, 246, 248];
+    const tituloDoc = (config.tituloDocumento || "PRESUPUESTO").toUpperCase();
 
     //HEADER//
     if (config.logo) {
@@ -133,7 +135,7 @@ export default function Presupuestos({ session }) {
     doc.setFontSize(28);
     doc.setTextColor(colorAcento[0], colorAcento[1], colorAcento[2]);
     doc.setFont(undefined, 'bold');
-    doc.text((config.tituloDocumento || "FACTURA").toUpperCase(), 196, 25, { align: "right", letterSpacing: 2 });
+    doc.text(tituloDoc, 196, 25, { align: "right", letterSpacing: 2 });
 
     // ZONA ROSA (Despegada del Logo)
     const infoY = 52; 
@@ -149,8 +151,8 @@ export default function Presupuestos({ session }) {
 
     doc.setFontSize(9);
     doc.setFont(undefined, 'bold');
-    const numeroFactura = ventaId ? String(ventaId).padStart(5, '0') : 'BORRADOR';
-    doc.text(`FACTURA: N° ${numeroFactura}`, 196, infoY, { align: "right" });
+    const numeroDocumento = ventaId ? String(ventaId).padStart(5, '0') : 'BORRADOR';
+    doc.text(`${tituloDoc}: N° ${numeroDocumento}`, 196, infoY, { align: "right" });
     doc.text(`FECHA: ${hoy}`, 196, infoY + 5, { align: "right" });
     doc.text(`PAGO: ${metodoPago.toUpperCase()}`, 196, infoY + 10, { align: "right" });
 
@@ -245,7 +247,7 @@ export default function Presupuestos({ session }) {
     const terminosFormateados = doc.splitTextToSize(config.condiciones, 100); 
     doc.text(terminosFormateados, 14, termsY + 6);
 
-    doc.save(`Factura_${clienteSeleccionado || 'General'}_${hoy.replace(/\//g, '-')}.pdf`);
+    doc.save(`${tituloDoc}_${clienteSeleccionado || 'General'}_${hoy.replace(/\//g, '-')}.pdf`);
   };
 
   const guardarVenta = async () => {
@@ -312,19 +314,19 @@ export default function Presupuestos({ session }) {
               <label className="text-xs font-black text-slate-400 uppercase ml-1">Cliente</label>
               <div className="relative mt-1">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <input 
-                  type="text" 
-                  list="lista-clientes"
-                  placeholder="Selecciona o escribe..."
+                <select
                   value={clienteSeleccionado}
                   onChange={(e) => setClienteSeleccionado(e.target.value)}
                   className="w-full p-3 pl-9 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 border border-slate-100 font-medium text-slate-700"
-                />
-                <datalist id="lista-clientes">
+                >
+                  <option value="">Público en General</option>
+                  {clienteSeleccionado && !clientes.some(c => c.nombre === clienteSeleccionado) && (
+                    <option value={clienteSeleccionado}>{clienteSeleccionado} (no registrado)</option>
+                  )}
                   {clientes.map((c, i) => (
-                    <option key={i} value={c.nombre} />
+                    <option key={i} value={c.nombre}>{c.nombre}</option>
                   ))}
-                </datalist>
+                </select>
               </div>
             </div>
 
@@ -474,7 +476,7 @@ export default function Presupuestos({ session }) {
                   onClick={generarPDF}
                   className="bg-slate-800 text-white px-6 py-4 rounded-2xl font-bold hover:bg-slate-900 transition flex justify-center items-center gap-2 shadow-lg shadow-slate-800/20"
                 >
-                  <FileDown size={20} /> Descargar Factura
+                  <FileDown size={20} /> Descargar {tituloBoton}
                 </button>
                 <button 
                   onClick={guardarVenta}

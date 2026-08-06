@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { supabase } from '../supabaseClient.js';
 import { 
   LayoutDashboard, 
   FileText, 
@@ -12,31 +13,52 @@ import {
   X
 } from 'lucide-react';
 
-export default function Sidebar() {
+export default function Sidebar({ session }) {
   const location = useLocation();
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [datosEmpresa, setDatosEmpresa] = useState({
     nombre: 'SISTEMA ERP',
-    logo: null,
-    pieSidebar: '2026'
+    logo: null
   });
 
-  const cargarDatos = () => {
-    const guardado = JSON.parse(localStorage.getItem('erp_datos_empresa'));
-    if (guardado) {
-      setDatosEmpresa({
-        nombre: guardado.nombre || 'SISTEMA ERP',
-        logo: guardado.logo || null,
-        pieSidebar: guardado.pieSidebar || '2026'
-      });
-    }
-  };
-
   useEffect(() => {
+    if (!session?.user?.id) return;
+
+    const cargarDatos = async () => {
+      const { data } = await supabase
+        .from('configuracion')
+        .select('nombre, logo')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (data) {
+        setDatosEmpresa({
+          nombre: data.nombre || 'SISTEMA ERP',
+          logo: data.logo || null
+        });
+      }
+    };
+
     cargarDatos();
-    window.addEventListener('storage', cargarDatos);
-    return () => window.removeEventListener('storage', cargarDatos);
-  }, []);
+
+    // Se actualiza solo en cuanto guardas cambios en Configuración,
+    // sin importar desde qué dispositivo o pestaña lo hagas.
+    const channel = supabase
+      .channel('sidebar-configuracion')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'configuracion',
+        filter: `user_id=eq.${session.user.id}`
+      }, () => {
+        cargarDatos();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.user?.id]);
 
   // Cierra el menú al cambiar de página en el celular
   useEffect(() => {
@@ -132,7 +154,7 @@ export default function Sidebar() {
 
         <div className="p-8 border-t border-white/5">
           <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] text-center leading-relaxed">
-            {datosEmpresa.pieSidebar}
+            2026
           </p>
         </div>
       </div>

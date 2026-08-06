@@ -7,7 +7,7 @@ export default function Configuracion({ session }) {
   const [cfg, setCfg] = useState({
     nombre: '', direccion: '', telefono: '', logo: null,
     banco: '', cuenta_nombre: '', cuenta_numero: '', condiciones: '',
-    titulo_documento: 'FACTURA', especialidad: '', sitio_web: '',
+    titulo_documento: 'PRESUPUESTO', especialidad: '', sitio_web: '',
     mostrar_firma: false, firma_base64: null
   });
 
@@ -50,7 +50,7 @@ export default function Configuracion({ session }) {
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <input placeholder="Nombre de la Empresa" value={cfg.nombre} onChange={(e) => setCfg({...cfg, nombre: e.target.value})} className="p-3 bg-slate-50 rounded-xl border border-slate-200" />
-          <input placeholder="Título del Doc (ej. FACTURA)" value={cfg.titulo_documento} onChange={(e) => setCfg({...cfg, titulo_documento: e.target.value})} className="p-3 bg-slate-50 rounded-xl border border-slate-200" />
+          <input placeholder="Título del Doc (ej. PRESUPUESTO)" value={cfg.titulo_documento} onChange={(e) => setCfg({...cfg, titulo_documento: e.target.value})} className="p-3 bg-slate-50 rounded-xl border border-slate-200" />
           <input placeholder="Especialidad / Giro" value={cfg.especialidad} onChange={(e) => setCfg({...cfg, especialidad: e.target.value})} className="p-3 bg-slate-50 rounded-xl border border-slate-200" />
           <input placeholder="Teléfono" value={cfg.telefono} onChange={(e) => setCfg({...cfg, telefono: e.target.value})} className="p-3 bg-slate-50 rounded-xl border border-slate-200" />
           <input placeholder="Sitio Web / Redes" value={cfg.sitio_web} onChange={(e) => setCfg({...cfg, sitio_web: e.target.value})} className="p-3 bg-slate-50 rounded-xl border border-slate-200" />
