@@ -58,6 +58,7 @@ export default function Sidebar({ session }) {
     ...(puede('editar_configuracion') ? [{ icon: <Settings size={20}/>, label: 'Configuración', path: '/configuracion' }] : []),
     ...(puede('gestionar_equipo')     ? [{ icon: <Shield size={20}/>,   label: 'Equipo',        path: '/equipo' }] : []),
     ...(esSuperAdmin ? [{ icon: <Building2 size={20}/>, label: 'Administración', path: '/administracion' }] : []),
+    { icon: <Users size={20}/>, label: 'Mi Cuenta', path: '/mi-cuenta' },
   ];
 
   const Marca = ({ chico }) => (
