@@ -3,20 +3,21 @@ import { useNegocio } from '../context/NegocioContext.jsx';
 import { LayoutDashboard, ChevronUp, ChevronDown, Check } from 'lucide-react';
 
 export const CATALOGO_WIDGETS = {
-  ingresos:         { label: 'Ingresos cobrados',   tipo: 'kpi' },
-  por_cobrar:       { label: 'Por cobrar',          tipo: 'kpi' },
-  egresos:          { label: 'Total egresos',       tipo: 'kpi', permiso: 'ver_finanzas' },
-  utilidad:         { label: 'Utilidad neta',       tipo: 'kpi', permiso: 'ver_finanzas' },
-  num_cotizaciones: { label: 'N.º de cotizaciones', tipo: 'kpi' },
-  ticket_promedio:  { label: 'Ticket promedio',     tipo: 'kpi' },
-  tasa_cierre:      { label: 'Tasa de cierre (%)',  tipo: 'kpi' },
-  clientes_activos: { label: 'Clientes registrados',tipo: 'kpi' },
-  grafica_cartera:  { label: 'Gráfica de cartera',  tipo: 'bloque' },
-  tendencia:        { label: 'Tendencia mensual',   tipo: 'bloque' },
-  pendientes:       { label: 'Lista de pendientes', tipo: 'bloque' },
-  top_clientes:     { label: 'Top 5 clientes',      tipo: 'bloque' },
-  gastos_categoria: { label: 'Gastos por categoría',tipo: 'bloque', permiso: 'ver_finanzas' },
-  ultimas:          { label: 'Últimas cotizaciones',tipo: 'bloque' },
+  ingresos:         { label: 'Dinero recibido',      tipo: 'kpi' },
+  por_cobrar:       { label: 'Por cobrar (saldo)',   tipo: 'kpi' },
+  egresos:          { label: 'Total egresos',        tipo: 'kpi', permiso: 'ver_finanzas' },
+  utilidad:         { label: 'Utilidad neta',        tipo: 'kpi', permiso: 'ver_finanzas' },
+  num_cotizaciones: { label: 'N.º de cotizaciones',  tipo: 'kpi' },
+  ticket_promedio:  { label: 'Ticket promedio',      tipo: 'kpi' },
+  tasa_cierre:      { label: 'Tasa de cierre (%)',   tipo: 'kpi' },
+  clientes_activos: { label: 'Clientes registrados', tipo: 'kpi' },
+  grafica_cartera:  { label: 'Gráfica de cartera',   tipo: 'bloque' },
+  tendencia:        { label: 'Tendencia mensual',    tipo: 'bloque' },
+  cobranza:         { label: 'Cobranza pendiente',   tipo: 'bloque' },
+  abonos:           { label: 'Últimos abonos',       tipo: 'bloque' },
+  top_clientes:     { label: 'Top 5 clientes',       tipo: 'bloque' },
+  gastos_categoria: { label: 'Gastos por categoría', tipo: 'bloque', permiso: 'ver_finanzas' },
+  ultimas:          { label: 'Últimas cotizaciones', tipo: 'bloque' },
 };
 
 export default function DashboardConfig() {
@@ -36,8 +37,7 @@ export default function DashboardConfig() {
     setDashboardCfg({ ...dashboardCfg, widgets: n });
   };
 
-  const disponibles = Object.entries(CATALOGO_WIDGETS)
-    .filter(([, w]) => !w.permiso || puede(w.permiso));
+  const disponibles = Object.entries(CATALOGO_WIDGETS).filter(([, w]) => !w.permiso || puede(w.permiso));
 
   return (
     <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-6">
@@ -61,8 +61,8 @@ export default function DashboardConfig() {
               return (
                 <div key={id} className="flex items-center gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-100">
                   <span className="text-[10px] font-black text-slate-300 w-5">{i + 1}</span>
-                  <span className="flex-1 font-bold text-sm text-slate-700">{w.label}</span>
-                  <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-slate-200 text-slate-500">
+                  <span className="flex-1 font-bold text-sm text-slate-700 truncate">{w.label}</span>
+                  <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-slate-200 text-slate-500 shrink-0">
                     {w.tipo}
                   </span>
                   <button onClick={() => mover(i, -1)} disabled={i === 0}
@@ -77,23 +77,19 @@ export default function DashboardConfig() {
       </div>
 
       <div>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
-          Elementos disponibles
-        </p>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Elementos disponibles</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {disponibles.map(([id, w]) => {
             const on = activos.includes(id);
             return (
-              <button key={id} onClick={() => toggle(id)}
+              <button key={id} type="button" onClick={() => toggle(id)}
                 className={`flex items-center gap-3 p-3 rounded-2xl border-2 text-left transition ${
                   on ? 'border-primario bg-primario-suave' : 'border-slate-100 hover:border-slate-300'}`}>
                 <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
                   on ? 'bg-primario text-white' : 'bg-slate-200'}`}>
                   {on && <Check size={13} strokeWidth={3} />}
                 </div>
-                <span className={`font-bold text-sm ${on ? 'text-primario-dark' : 'text-slate-600'}`}>
-                  {w.label}
-                </span>
+                <span className={`font-bold text-sm ${on ? 'text-primario-dark' : 'text-slate-600'}`}>{w.label}</span>
               </button>
             );
           })}
@@ -101,9 +97,7 @@ export default function DashboardConfig() {
       </div>
 
       <div>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-          Periodo por defecto
-        </p>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Periodo por defecto</p>
         <select value={dashboardCfg.periodo_default || 'mes'}
           onChange={(e) => setDashboardCfg({ ...dashboardCfg, periodo_default: e.target.value })}
           className="w-full md:w-64 p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold outline-none">

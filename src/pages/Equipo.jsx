@@ -4,11 +4,12 @@ import { useNegocio } from '../context/NegocioContext.jsx';
 import { UserPlus, Shield, Trash2, Mail, Check, KeyRound, Copy, RefreshCw } from 'lucide-react';
 
 const PERMISOS = [
-  { key: 'ver_finanzas', label: 'Ver Finanzas', desc: 'Ingresos, gastos y utilidad' },
-  { key: 'registrar_gastos', label: 'Registrar gastos', desc: 'Capturar egresos' },
-  { key: 'eliminar_registros', label: 'Eliminar registros', desc: 'Borrar ventas, clientes y gastos' },
-  { key: 'editar_configuracion', label: 'Editar configuración', desc: 'Logo, banco y términos' },
-  { key: 'gestionar_equipo', label: 'Gestionar equipo', desc: 'Invitar y cambiar permisos' },
+  { key: 'ver_finanzas',        label: 'Ver Finanzas',        desc: 'Ingresos, gastos y utilidad' },
+  { key: 'registrar_pagos',     label: 'Registrar abonos',    desc: 'Cobrar anticipos y liquidaciones' },
+  { key: 'registrar_gastos',    label: 'Registrar gastos',    desc: 'Capturar egresos' },
+  { key: 'eliminar_registros',  label: 'Eliminar registros',  desc: 'Borrar ventas, clientes y gastos' },
+  { key: 'editar_configuracion',label: 'Editar configuración',desc: 'Logo, banco y términos' },
+  { key: 'gestionar_equipo',    label: 'Gestionar equipo',    desc: 'Invitar y cambiar permisos' },
 ];
 
 const generarPassword = () => {

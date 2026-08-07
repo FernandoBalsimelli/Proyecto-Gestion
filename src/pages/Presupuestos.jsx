@@ -8,6 +8,7 @@ import { supabase } from '../supabaseClient.js';
 import { useNegocio } from '../context/NegocioContext.jsx';
 import { generarDocumentoPDF } from '../utils/pdfGenerador.js';
 import { hoyLocal, formatoMX } from '../utils/fecha.js';
+import { useUI } from '../components/ui/UI.jsx';
 
 const money = (n) => `$${(Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
 
@@ -26,6 +27,7 @@ function AutoTextarea({ value, onChange, className = '', ...props }) {
 const FILA_VACIA = { cantidad: 1, descripcion: '', precio: '' };
 
 export default function Presupuestos({ session }) {
+  const { toast } = useUI();
   const { negocioId } = useNegocio();
   const location = useLocation();
   const navigate = useNavigate();
@@ -143,7 +145,7 @@ export default function Presupuestos({ session }) {
   /* ─────────── PDF ─────────── */
   const generarPDF = () => {
     const limpios = conceptosLimpios();
-    if (!limpios.length) return alert('Agrega al menos un concepto válido para el PDF.');
+    if (!limpios.length) return toast.error('Agrega al menos un concepto válido para el PDF.');
 
     generarDocumentoPDF({
       config, pdfCfg,
@@ -158,9 +160,9 @@ export default function Presupuestos({ session }) {
   /* ─────────── Guardar ─────────── */
   const guardarVenta = async () => {
     const limpios = conceptosLimpios();
-    if (!limpios.length) return alert('Agrega al menos un concepto con descripción y cantidad.');
-    if (totalNeto <= 0) return alert('El total está en ceros. Agrega precios válidos.');
-    if (!negocioId) return alert('Cargando negocio, espera un momento.');
+    if (!limpios.length) return toast.error('Agrega al menos un concepto con descripción y cantidad.');
+    if (totalNeto <= 0) return toast.error('El total está en ceros. Agrega precios válidos.');
+    if (!negocioId) return toast.ok('Cargando negocio, espera un momento.');
 
     setCargando(true);
     try {
@@ -180,7 +182,7 @@ export default function Presupuestos({ session }) {
       if (ventaId) {
         const { error } = await supabase.from('ventas').update(datos).eq('id', ventaId);
         if (error) throw error;
-        alert('Cotización actualizada correctamente.');
+        toast.ok('Cotización actualizada correctamente.');
         navigate('/historial');
       } else {
         const { data, error } = await supabase
@@ -190,10 +192,10 @@ export default function Presupuestos({ session }) {
         if (error) throw error;
         setVentaId(data.id);
         setFolio(data.folio ?? null);
-        alert('Cotización registrada exitosamente.');
+        toast.ok('Cotización registrada exitosamente.');
       }
     } catch (e) {
-      alert('Error al guardar: ' + e.message);
+      toast.error('Error al guardar: ' + e.message);
     } finally {
       setCargando(false);
     }
@@ -255,7 +257,7 @@ export default function Presupuestos({ session }) {
                   className={`${inputBase} pl-9 font-bold`}>
                   <option value="">Público en General</option>
                   {clienteNombre && !clienteId && (
-                    <option value="">{clienteNombre} (sin registrar)</option>
+                    <option value="__sin_registrar" disabled>{clienteNombre} (sin registrar)</option>
                   )}
                   {clientes.map(c => (
                     <option key={c.id} value={c.id}>
@@ -292,14 +294,12 @@ export default function Presupuestos({ session }) {
             <div>
               <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Estado</label>
               <div className="relative mt-1">
-                <CheckCircle className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 z-10 ${
-                  estado === 'pagado' ? 'text-emerald-500'
-                  : estado === 'cancelado' ? 'text-slate-400' : 'text-amber-500'}`} />
+                <CheckCircle className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 z-10 ${estado === 'pagado' ? 'text-emerald-500'
+                    : estado === 'cancelado' ? 'text-slate-400' : 'text-amber-500'}`} />
                 <select value={estado} onChange={(e) => setEstado(e.target.value)}
-                  className={`w-full p-3 pl-9 rounded-xl outline-none border font-bold transition ${
-                    estado === 'pagado'    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                    : estado === 'cancelado' ? 'bg-slate-100 border-slate-300 text-slate-500'
-                    : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+                  className={`w-full p-3 pl-9 rounded-xl outline-none border font-bold transition ${estado === 'pagado' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                      : estado === 'cancelado' ? 'bg-slate-100 border-slate-300 text-slate-500'
+                        : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
                   <option value="pendiente">Pendiente (por cobrar)</option>
                   <option value="pagado">Pagado (completado)</option>
                   <option value="cancelado">Cancelado (archivado)</option>

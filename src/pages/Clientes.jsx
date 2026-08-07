@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../supabaseClient.js';
 import { useNegocio } from '../context/NegocioContext.jsx';
+import { useUI } from '../components/ui/UI.jsx';
 
 /* ─────────── Helpers de validación ─────────── */
 
@@ -31,9 +32,19 @@ const normalizar = (v) =>
 
 const FORM_VACIO = { nombre: '', alias: '', telefono: '', correo: '', direccion: '' };
 
+// arriba del export default
+const MsgError = ({ msg }) => msg ? (
+  <p className="text-[11px] font-bold text-red-600 mt-1 ml-1 flex items-start gap-1">
+    <AlertTriangle size={12} className="mt-0.5 shrink-0" /> {msg}
+  </p>
+) : null;
+
+// uso:  <MsgError msg={errores.nombre} />
+
 /* ─────────── Componente ─────────── */
 
 export default function Clientes({ session }) {
+  const { toast, confirmar } = useUI();
   const { negocioId, puede, esDueno } = useNegocio();
   const [clientes, setClientes] = useState([]);
   const [busqueda, setBusqueda] = useState('');
@@ -167,11 +178,16 @@ export default function Clientes({ session }) {
   };
 
   const eliminarCliente = async (id, nombre) => {
-    if (!window.confirm(`¿Eliminar a "${nombre}"? Esta acción no se puede deshacer.`)) return;
-    const { error } = await supabase.from('clientes').delete().eq('id', id);
-    if (error) alert('Error al eliminar: ' + error.message);
-    else fetchClientes();
-  };
+  const ok = await confirmar({
+    titulo: 'Eliminar cliente', mensaje: `"${nombre}" se eliminará permanentemente.`,
+    okTexto: 'Eliminar', peligro: true,
+  });
+  if (!ok) return;
+  const { error } = await supabase.from('clientes').delete().eq('id', id);
+  if (error) return toast.error('Error al eliminar: ' + error.message);
+  toast.ok('Cliente eliminado.');
+  fetchClientes();
+};
 
   /* ---------- Filtro ---------- */
   const clientesFiltrados = useMemo(() => {
@@ -200,13 +216,6 @@ export default function Clientes({ session }) {
     `${inputBase} ${errores[campo]
       ? 'bg-red-50 border-red-300 focus:ring-red-500/20'
       : 'bg-slate-50 border-slate-100 focus:ring-blue-500/10'}`;
-
-  const MsgError = ({ campo }) =>
-    errores[campo] ? (
-      <p className="text-[11px] font-bold text-red-600 mt-1 ml-1 flex items-start gap-1">
-        <AlertTriangle size={12} className="mt-0.5 shrink-0" /> {errores[campo]}
-      </p>
-    ) : null;
 
   /* ---------- Render ---------- */
   return (
@@ -255,7 +264,7 @@ export default function Clientes({ session }) {
                 placeholder="Ej. Juan Pérez"
                 autoComplete="off"
               />
-              <MsgError campo="nombre" />
+              <MsgError msg={errores.nombre} />
             </div>
 
             {/* Aviso + Alias */}
@@ -284,7 +293,7 @@ export default function Clientes({ session }) {
                   autoComplete="off"
                 />
               </div>
-              <MsgError campo="alias" />
+              <MsgError msg={errores.alias} />
             </div>
 
             {/* Teléfono */}
@@ -305,7 +314,7 @@ export default function Clientes({ session }) {
                   autoComplete="off"
                 />
               </div>
-              <MsgError campo="telefono" />
+              <MsgError msg={errores.telefono} />
               {!errores.telefono && formData.telefono.length > 0 && formData.telefono.length < 10 && (
                 <p className="text-[11px] font-bold text-slate-400 mt-1 ml-1">
                   {10 - formData.telefono.length} dígitos restantes
@@ -330,7 +339,7 @@ export default function Clientes({ session }) {
                   autoComplete="off"
                 />
               </div>
-              <MsgError campo="correo" />
+              <MsgError msg={errores.correo} />
             </div>
 
             {/* Dirección */}

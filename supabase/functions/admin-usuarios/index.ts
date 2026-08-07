@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
         user_id: userId,
         email,
         rol,
-        permisos: p.permisos ?? { registrar_gastos: true },
+       permisos: p.permisos ?? { registrar_gastos: true, registrar_pagos: true },
       })
       if (mErr) {
         if (!existente) await admin.auth.admin.deleteUser(userId) // rollback
