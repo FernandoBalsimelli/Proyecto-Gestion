@@ -4,11 +4,11 @@ import { useNegocio } from '../context/NegocioContext.jsx';
 import { UserPlus, Shield, Trash2, Mail, Check, KeyRound, Copy, RefreshCw } from 'lucide-react';
 
 const PERMISOS = [
-  { key: 'ver_finanzas',         label: 'Ver Finanzas',         desc: 'Ingresos, gastos y utilidad' },
-  { key: 'registrar_gastos',     label: 'Registrar gastos',     desc: 'Capturar egresos' },
-  { key: 'eliminar_registros',   label: 'Eliminar registros',   desc: 'Borrar ventas, clientes y gastos' },
+  { key: 'ver_finanzas', label: 'Ver Finanzas', desc: 'Ingresos, gastos y utilidad' },
+  { key: 'registrar_gastos', label: 'Registrar gastos', desc: 'Capturar egresos' },
+  { key: 'eliminar_registros', label: 'Eliminar registros', desc: 'Borrar ventas, clientes y gastos' },
   { key: 'editar_configuracion', label: 'Editar configuración', desc: 'Logo, banco y términos' },
-  { key: 'gestionar_equipo',     label: 'Gestionar equipo',     desc: 'Invitar y cambiar permisos' },
+  { key: 'gestionar_equipo', label: 'Gestionar equipo', desc: 'Invitar y cambiar permisos' },
 ];
 
 const generarPassword = () => {
@@ -191,8 +191,7 @@ export default function Equipo() {
                     return (
                       <button key={p.key} disabled={soyYo}
                         onClick={() => !soyYo && togglePermiso(m, p.key)}
-                        className={`text-left p-4 rounded-2xl border transition ${soyYo ? 'opacity-50 cursor-not-allowed' : ''} ${
-                          activo ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-100 hover:border-slate-300'}`}>
+                        className={`text-left p-4 rounded-2xl border transition ${soyYo ? 'opacity-50 cursor-not-allowed' : ''} ${activo ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-100 hover:border-slate-300'}`}>
                         <div className="flex items-center justify-between gap-2">
                           <span className={`font-bold text-sm ${activo ? 'text-blue-700' : 'text-slate-600'}`}>{p.label}</span>
                           <div className={`w-9 h-5 rounded-full flex items-center px-0.5 transition ${activo ? 'bg-blue-600 justify-end' : 'bg-slate-300 justify-start'}`}>

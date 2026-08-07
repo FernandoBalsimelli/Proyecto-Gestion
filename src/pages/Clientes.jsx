@@ -43,7 +43,7 @@ export default function Clientes({ session }) {
   const [errores, setErrores] = useState({});
 
   /* ---------- Carga ---------- */
-    /* ---------- Carga ---------- */
+  /* ---------- Carga ---------- */
   const fetchClientes = async () => {
     if (!negocioId) return;
     const { data, error } = await supabase
@@ -57,7 +57,7 @@ export default function Clientes({ session }) {
   };
 
   useEffect(() => { fetchClientes(); }, [negocioId]);
-  
+
   /* ---------- Detección de nombre repetido (en vivo) ---------- */
   const nombreDuplicado = useMemo(() => {
     const n = normalizar(formData.nombre);
@@ -111,7 +111,7 @@ export default function Clientes({ session }) {
     ev.preventDefault();
     if (!validar()) return;
 
-        if (!negocioId) {
+    if (!negocioId) {
       setErrores({ general: 'Aún cargando el negocio, espera un segundo e intenta de nuevo.' });
       return;
     }
@@ -129,7 +129,7 @@ export default function Clientes({ session }) {
       const { error } = editandoId
         ? await supabase.from('clientes').update(payload).eq('id', editandoId)
         : await supabase.from('clientes').insert([{ negocio_id: negocioId, user_id: session.user.id, ...payload }]);
-       
+
       if (error) {
         // 23505 = violación de índice único (teléfono repetido)
         if (error.code === '23505') {
@@ -411,11 +411,10 @@ export default function Clientes({ session }) {
                         </div>
                         {c.alias && (
                           <span
-                            className={`inline-block mt-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
-                              repetido
+                            className={`inline-block mt-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${repetido
                                 ? 'bg-amber-100 text-amber-700'
                                 : 'bg-slate-100 text-slate-500'
-                            }`}
+                              }`}
                           >
                             {c.alias}
                           </span>
@@ -436,7 +435,7 @@ export default function Clientes({ session }) {
                         </button>
                         {puede('eliminar_registros') && (
                           <button onClick={() => eliminarCliente(c.id, c.nombre)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl">
-                          <Trash2 size={16} />
+                            <Trash2 size={16} />
                           </button>
                         )}
                       </div>

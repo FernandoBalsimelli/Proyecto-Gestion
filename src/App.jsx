@@ -12,8 +12,8 @@ import Clientes from './pages/Clientes.jsx';
 import Configuracion from './pages/Configuracion.jsx';
 import Equipo from './pages/Equipo.jsx';
 import Administracion from './pages/Administracion.jsx';
-import MiCuenta from './pages/MiCuenta.jsx';   
-import Recuperar from './pages/Recuperar.jsx';      
+import MiCuenta from './pages/MiCuenta.jsx';
+import Recuperar from './pages/Recuperar.jsx';
 import { NegocioProvider, useNegocio, Protegido } from './context/NegocioContext.jsx';
 
 /* ════════════════════════════════════════════
@@ -73,7 +73,7 @@ export default function App() {
     );
   };
 
-    /* ---------- Página de recuperación (siempre accesible) ---------- */
+  /* ---------- Página de recuperación (siempre accesible) ---------- */
   if (window.location.pathname === '/recuperar') {
     return <Recuperar />;
   }
@@ -109,8 +109,7 @@ export default function App() {
           </div>
 
           {msgRecuperar && (
-            <div className={`text-xs p-3 rounded-xl text-center border ${
-              msgRecuperar.t === 'ok'
+            <div className={`text-xs p-3 rounded-xl text-center border ${msgRecuperar.t === 'ok'
                 ? 'bg-blue-500/10 border-blue-500/20 text-blue-300'
                 : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
               {msgRecuperar.m}
@@ -235,7 +234,7 @@ function Shell({ session }) {
   }
 
   return (
-    <div className="flex bg-slate-50 min-h-screen font-sans">
+    <div className="flex bg-slate-50 min-h-screen">
       <Sidebar session={session} />
       <div className="flex-1 md:ml-64 pt-16 md:pt-0 min-h-screen w-full overflow-x-hidden">
         <Routes>
@@ -290,7 +289,7 @@ function CambioObligatorio({
     e.preventDefault();
     setErr('');
     if (pass.length < 8) return setErr('La contraseña debe tener al menos 8 caracteres.');
-    if (pass !== pass2)  return setErr('Las contraseñas no coinciden.');
+    if (pass !== pass2) return setErr('Las contraseñas no coinciden.');
 
     setLoad(true);
     const { error } = await supabase.auth.updateUser({

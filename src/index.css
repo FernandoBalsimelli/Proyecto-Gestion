@@ -1,3 +1,59 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --color-primario: #2563eb;
+  --color-primario-dark: #1d4ed8;
+  --color-primario-suave: #eff6ff;
+  --fuente-app: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* ✅ Fuerza la fuente en toda la app */
+html, body, #root,
+button, input, select, textarea, optgroup {
+  font-family: var(--fuente-app) !important;
+}
+
+/* Estilo de bordes configurable */
+[data-radio="recto"] .rounded-3xl,
+[data-radio="recto"] .rounded-2xl,
+[data-radio="recto"] .rounded-xl,
+[data-radio="recto"] .rounded-lg {
+    border-radius: 0.25rem !important;
+}
+
+[data-radio="suave"] .rounded-3xl {
+    border-radius: 1.25rem !important;
+}
+
+[data-radio="redondo"] .rounded-3xl {
+    border-radius: 2rem !important;
+}
+
+[data-radio="redondo"] .rounded-2xl {
+    border-radius: 1.5rem !important;
+}
+
+[data-radio="redondo"] .rounded-xl {
+    border-radius: 1rem !important;
+}
+/* ══ Scrollbar general ══ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148,163,184,.35) transparent;
+}
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: rgba(148,163,184,.35);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover { background: rgba(100,116,139,.55); }
+
+/* ══ Scrollbar del sidebar (invisible hasta hover) ══ */
+.scroll-sidebar { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+.scroll-sidebar::-webkit-scrollbar { width: 4px; }
+.scroll-sidebar::-webkit-scrollbar-thumb { background: transparent; border-radius: 999px; }
+.scroll-sidebar:hover { scrollbar-color: rgba(255,255,255,.25) transparent; }
+.scroll-sidebar:hover::-webkit-scrollbar-thumb { background: rgba(255,255,255,.25); }
