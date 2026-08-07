@@ -29,8 +29,10 @@ export default function Configuracion({ session }) {
     loadConfig();
   }, [negocioId]);
 
-  const handleFileUpload = (e, field) => {
-    const file = e.target.files[0];
+    const handleFileUpload = (e, field) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 1_000_000) return alert('La imagen debe pesar menos de 1 MB.');
     const reader = new FileReader();
     reader.onloadend = () => setCfg(prev => ({ ...prev, [field]: reader.result }));
     reader.readAsDataURL(file);

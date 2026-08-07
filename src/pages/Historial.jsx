@@ -13,15 +13,15 @@ export default function Historial({ session }) {
 
   useEffect(() => {
     fetchVentas();
-  }, []);
+  }, [negocioId]);
 
-  const fetchVentas = async () => {
+const fetchVentas = async () => {
+    if (!negocioId) return;
     setCargando(true);
     const { data, error } = await supabase
-      .from('ventas')
-      .select('*')
+      .from('ventas').select('*')
+      .eq('negocio_id', negocioId)                      
       .order('fecha', { ascending: false });
-
     if (!error) setVentas(data || []);
     setCargando(false);
   };
@@ -38,9 +38,9 @@ export default function Historial({ session }) {
     navigate('/presupuestos', { state: { ventaEditar: venta } });
   };
 
-  const ventasFiltradas = (ventas || []).filter(v => 
-    v.cliente.toLowerCase().includes(busqueda.toLowerCase()) || 
-    v.descripcion.toLowerCase().includes(busqueda.toLowerCase())
+    const ventasFiltradas = (ventas || []).filter(v =>
+    (v.cliente || '').toLowerCase().includes(busqueda.toLowerCase()) ||
+    (v.descripcion || '').toLowerCase().includes(busqueda.toLowerCase())
   );
 
   return (
@@ -83,9 +83,11 @@ export default function Historial({ session }) {
                   <button onClick={() => cargarParaEditar(v)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl transition">
                     <Edit2 size={18} />
                   </button>
-                  <button onClick={() => eliminarVenta(v.id)} className="p-2 text-slate-300 hover:text-red-500 rounded-xl transition">
-                    <Trash2 size={18} />
-                  </button>
+                  {puede('eliminar_registros') && (
+                    <button onClick={() => eliminarCliente(c.id, c.nombre)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl">
+                    <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

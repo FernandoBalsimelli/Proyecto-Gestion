@@ -5,9 +5,11 @@ import { supabase } from '../supabaseClient.js';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useNegocio } from '../context/NegocioContext.jsx';
+import { hoyLocal, formatoMX } from '../utils/fecha.js';
 
 export default function Presupuestos({ session }) {
   const { negocioId, puede, esDueno } = useNegocio();
+
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -30,7 +32,7 @@ export default function Presupuestos({ session }) {
 
   const [ventaId, setVentaId] = useState(null);
   const [clienteSeleccionado, setClienteSeleccionado] = useState('');
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [fecha, setFecha] = useState(hoyLocal());
   const [metodoPago, setMetodoPago] = useState('Efectivo');
   const [estado, setEstado] = useState('pendiente');
   const [incluirIva, setIncluirIva] = useState(false);
@@ -38,11 +40,21 @@ export default function Presupuestos({ session }) {
   const [conceptos, setConceptos] = useState([{ cantidad: 1, descripcion: '', precio: '' }]);
 
   useEffect(() => {
+     if (!negocioId) return;
+        
     const fetchDatosBase = async () => {
-      const { data } = await supabase.from('clientes').select('nombre').order('nombre');
+      const { data } = await supabase
+        .from('clientes')
+        .select('nombre, alias')
+        .eq('negocio_id', negocioId)          
+        .order('nombre');
       if (data) setClientes(data);
 
-      const { data: cfg } = await supabase.from('configuracion').select('*').eq('user_id', session.user.id).single();
+      const { data: cfg } = await supabase
+        .from('configuracion')
+        .select('*')
+        .eq('negocio_id', negocioId)         
+        .maybeSingle();  
       if (cfg) {
         setConfig({
           tituloDocumento: cfg.titulo_documento || 'PRESUPUESTO',
@@ -85,7 +97,7 @@ export default function Presupuestos({ session }) {
         setConceptos(conceptosDesglosados.length > 0 ? conceptosDesglosados : [{ cantidad: 1, descripcion: '', precio: '' }]);
       }
     }
-  }, [location.state, session.user.id]);
+  }, [location.state, negocioId, session.user.id]);
 
   const seleccionarTodo = (e) => e.target.select();
   const agregarFila = () => setConceptos([...conceptos, { cantidad: 1, descripcion: '', precio: '' }]);
@@ -118,7 +130,7 @@ export default function Presupuestos({ session }) {
     if (conceptosLimpios.length === 0) return alert("Agrega al menos un concepto válido para el PDF.");
 
     const doc = new jsPDF();
-    const hoy = fecha.split('-').reverse().join('/');
+    const hoy = formatoMX(fecha);
     const colorAcento = [22, 65, 94]; 
     const colorTexto = [70, 70, 70];
     const colorGrisClaro = [245, 246, 248];
@@ -153,7 +165,9 @@ export default function Presupuestos({ session }) {
 
     doc.setFontSize(9);
     doc.setFont(undefined, 'bold');
-    const numeroDocumento = ventaId ? String(ventaId).padStart(5, '0') : 'BORRADOR';
+    const numeroDocumento = ventaId
+  ? String(location.state?.ventaEditar?.folio ?? ventaId).padStart(5, '0')
+  : 'BORRADOR';
     doc.text(`${tituloDoc}: N° ${numeroDocumento}`, 196, infoY, { align: "right" });
     doc.text(`FECHA: ${hoy}`, 196, infoY + 5, { align: "right" });
     doc.text(`PAGO: ${metodoPago.toUpperCase()}`, 196, infoY + 10, { align: "right" });
@@ -278,7 +292,10 @@ export default function Presupuestos({ session }) {
         alert("Cotización actualizada correctamente.");
         navigate('/historial');
       } else {
-        const { error } = await supabase.from('ventas').insert([{ user_id: session.user.id, ...datosGuardar }]);
+        const { error } = await supabase.from('ventas').insert
+        ([{ negocio_id: negocioId, 
+        user_id: session.user.id, 
+        ...datosGuardar }]);
         if (error) throw error;
         alert("Cotización registrada exitosamente en tu historial.");
         setClienteSeleccionado('');

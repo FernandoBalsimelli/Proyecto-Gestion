@@ -22,9 +22,8 @@ export function NegocioProvider({ session, children }) {
         .eq('user_id', session.user.id)
         .maybeSingle();
       const { data: sa } = await supabase.rpc('es_super_admin');
-if (activo) setEsSuperAdmin(sa === true);
-
       if (!activo) return;
+      setEsSuperAdmin(sa === true);
       if (error) setError(error.message);
       else if (!data) setError('SIN_NEGOCIO');
       else setMiembro(data);

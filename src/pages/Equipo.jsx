@@ -137,9 +137,10 @@ export default function Equipo() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {PERMISOS.map(p => {
                     const activo = m.permisos?.[p.key] === true;
+                    const bloqueado = soyYo;
                     return (
-                      <button key={p.key} onClick={() => togglePermiso(m, p.key)}
-                        className={`text-left p-4 rounded-2xl border transition ${activo ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-100 hover:border-slate-300'}`}>
+                      <button key={p.key} disabled={bloqueado} onClick={() => !bloqueado &&togglePermiso(m, p.key)}
+                        className={`text-left p-4 rounded-2xl border transition ${bloqueado ? 'opacity-50 cursor-not-allowed' : ''}`}>
                         <div className="flex items-center justify-between gap-2">
                           <span className={`font-bold text-sm ${activo ? 'text-blue-700' : 'text-slate-600'}`}>{p.label}</span>
                           <div className={`w-9 h-5 rounded-full flex items-center px-0.5 transition ${activo ? 'bg-blue-600 justify-end' : 'bg-slate-300 justify-start'}`}>
@@ -148,6 +149,7 @@ export default function Equipo() {
                         </div>
                         <p className="text-[11px] text-slate-400 font-medium mt-1">{p.desc}</p>
                       </button>
+                      
                     );
                   })}
                 </div>

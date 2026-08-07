@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient.js';
 import { useNegocio } from '../context/NegocioContext.jsx';
+import { hoyLocal, formatoMX } from '../utils/fecha.js';
 import { DollarSign, TrendingDown, Wallet, Plus, Trash2, Calendar, FileText, Tag, Save, LayoutGrid } from 'lucide-react';
 
 export default function Finanzas({ session }) {
@@ -13,20 +14,24 @@ export default function Finanzas({ session }) {
   const [descripcion, setDescripcion] = useState('');
   const [monto, setMonto] = useState('');
   const [categoria, setCategoria] = useState('Materiales'); 
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
-
+  const [fecha, setFecha] = useState(hoyLocal());
   useEffect(() => {
     fetchFinanzas();
-  }, [session.user.id]);
+  }, [negocioId]);
 
   const fetchFinanzas = async () => {
-    const { data: dataGastos } = await supabase.from('gastos').select('*').order('fecha', { ascending: false });
-    if (dataGastos) setGastos(dataGastos);
+    if (!negocioId) return;
+    const { data: dataGastos } = await supabase
+      .from('gastos').select('*')
+      .eq('negocio_id', negocioId)                      
+      .order('fecha', { ascending: false });
+    setGastos(dataGastos || []);
 
-    const { data: dataVentas } = await supabase.from('ventas').select('monto').eq('estado', 'pagado');
-    if (dataVentas) {
-      setIngresosTotales(dataVentas.reduce((acc, v) => acc + (Number(v.monto) || 0), 0));
-    }
+    const { data: dataVentas } = await supabase
+      .from('ventas').select('monto')
+      .eq('negocio_id', negocioId)                      
+      .eq('estado', 'pagado');
+    setIngresosTotales((dataVentas || []).reduce((a, v) => a + (Number(v.monto) || 0), 0));
   };
 
   const agregarGasto = async (e) => {
@@ -35,12 +40,10 @@ export default function Finanzas({ session }) {
     
     setCargando(true);
     try {
-      const { error } = await supabase.from('gastos').insert([{
+       const { error } = await supabase.from('gastos').insert([{
+        negocio_id: negocioId,                         
         user_id: session.user.id,
-        descripcion,
-        categoria, 
-        monto: Number(monto),
-        fecha
+        descripcion, categoria, monto: Number(monto), fecha
       }]);
 
       if (error) throw error;

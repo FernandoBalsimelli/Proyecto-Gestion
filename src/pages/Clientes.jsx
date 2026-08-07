@@ -43,19 +43,21 @@ export default function Clientes({ session }) {
   const [errores, setErrores] = useState({});
 
   /* ---------- Carga ---------- */
+    /* ---------- Carga ---------- */
   const fetchClientes = async () => {
+    if (!negocioId) return;
     const { data, error } = await supabase
       .from('clientes')
       .select('*')
-      .eq('user_id', session.user.id)          // defensa extra además del RLS
+      .eq('negocio_id', negocioId)
       .order('nombre', { ascending: true });
 
     if (error) console.error('Error al cargar clientes:', error.message);
     else setClientes(data || []);
   };
 
-  useEffect(() => { fetchClientes(); }, [session.user.id]);
-
+  useEffect(() => { fetchClientes(); }, [negocioId]);
+  
   /* ---------- Detección de nombre repetido (en vivo) ---------- */
   const nombreDuplicado = useMemo(() => {
     const n = normalizar(formData.nombre);
@@ -432,12 +434,11 @@ export default function Clientes({ session }) {
                         >
                           <Edit2 size={16} />
                         </button>
-                        <button
-                          onClick={() => eliminarCliente(c.id, c.nombre)}
-                          className="p-2 text-red-500 hover:bg-red-50 rounded-xl"
-                        >
+                        {puede('eliminar_registros') && (
+                          <button onClick={() => eliminarCliente(c.id, c.nombre)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl">
                           <Trash2 size={16} />
-                        </button>
+                          </button>
+                        )}
                       </div>
                     </div>
 
