@@ -1,161 +1,140 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { supabase } from '../supabaseClient.js';
-import { 
-  LayoutDashboard, 
-  FileText, 
-  History, 
-  Wallet, 
-  Users, 
-  Settings, 
-  Zap,
-  Menu,
-  X
+import { useNegocio } from '../context/NegocioContext.jsx';
+import {
+  LayoutDashboard, FileText, History, Wallet, Users,
+  Settings, Shield, Zap, Menu, X, LogOut
 } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 
 export default function Sidebar({ session }) {
   const location = useLocation();
+  const { negocioId, puede, esDueno, nombreNegocio, esSuperAdmin } = useNegocio();
   const [menuAbierto, setMenuAbierto] = useState(false);
-  const [datosEmpresa, setDatosEmpresa] = useState({
-    nombre: 'SISTEMA ERP',
-    logo: null
-  });
+  const [logo, setLogo] = useState(null);
+  const [nombre, setNombre] = useState('SISTEMA ERP');
 
   useEffect(() => {
-    if (!session?.user?.id) return;
+    if (!negocioId) return;
 
     const cargarDatos = async () => {
       const { data } = await supabase
         .from('configuracion')
         .select('nombre, logo')
-        .eq('user_id', session.user.id)
-        .single();
+        .eq('negocio_id', negocioId)
+        .maybeSingle();
 
-      if (data) {
-        setDatosEmpresa({
-          nombre: data.nombre || 'SISTEMA ERP',
-          logo: data.logo || null
-        });
-      }
+      setNombre(data?.nombre || nombreNegocio || 'SISTEMA ERP');
+      setLogo(data?.logo || null);
     };
 
     cargarDatos();
 
-    // Se actualiza solo en cuanto guardas cambios en Configuración,
-    // sin importar desde qué dispositivo o pestaña lo hagas.
-    const channel = supabase
-      .channel('sidebar-configuracion')
+    const canal = supabase
+      .channel(`sidebar-${negocioId}`)
       .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'configuracion',
-        filter: `user_id=eq.${session.user.id}`
-      }, () => {
-        cargarDatos();
-      })
+        event: '*', schema: 'public', table: 'configuracion',
+        filter: `negocio_id=eq.${negocioId}`,
+      }, cargarDatos)
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [session?.user?.id]);
+    return () => { supabase.removeChannel(canal); };
+  }, [negocioId, nombreNegocio]);
 
-  // Cierra el menú al cambiar de página en el celular
-  useEffect(() => {
-    setMenuAbierto(false);
-  }, [location.pathname]);
+  useEffect(() => { setMenuAbierto(false); }, [location.pathname]);
+
+  const cerrarSesion = async () => {
+    if (!window.confirm('¿Cerrar sesión?')) return;
+    await supabase.auth.signOut();
+  };
 
   const menuItems = [
-    { icon: <LayoutDashboard size={20}/>, label: 'Dashboard', path: '/' },
-    { icon: <FileText size={20}/>, label: 'Nueva Cotización', path: '/presupuestos' },
-    { icon: <History size={20}/>, label: 'Historial', path: '/historial' },
-    { icon: <Wallet size={20}/>, label: 'Finanzas', path: '/finanzas' },
-    { icon: <Users size={20}/>, label: 'Clientes', path: '/clientes' },
-    { icon: <Settings size={20}/>, label: 'Configuración', path: '/configuracion' },
+    { icon: <LayoutDashboard size={20}/>, label: 'Dashboard',        path: '/' },
+    { icon: <FileText size={20}/>,        label: 'Nueva Cotización', path: '/presupuestos' },
+    { icon: <History size={20}/>,         label: 'Historial',        path: '/historial' },
+    ...(puede('ver_finanzas')         ? [{ icon: <Wallet size={20}/>,   label: 'Finanzas',      path: '/finanzas' }] : []),
+    { icon: <Users size={20}/>,           label: 'Clientes',         path: '/clientes' },
+    ...(puede('editar_configuracion') ? [{ icon: <Settings size={20}/>, label: 'Configuración', path: '/configuracion' }] : []),
+    ...(puede('gestionar_equipo')     ? [{ icon: <Shield size={20}/>,   label: 'Equipo',        path: '/equipo' }] : []),
+    ...(esSuperAdmin ? [{ icon: <Building2 size={20}/>, label: 'Administración', path: '/administracion' }] : []),
   ];
+
+  const Marca = ({ chico }) => (
+    <div className="flex items-center gap-3 overflow-hidden">
+      {logo ? (
+        <img src={logo} alt="Logo"
+          className={`${chico ? 'h-8 w-8' : 'h-10 w-10'} object-contain rounded-lg bg-white p-1 shrink-0`} />
+      ) : (
+        <div className={`${chico ? 'p-1.5' : 'p-2'} bg-blue-600 rounded-xl text-white shrink-0`}>
+          <Zap size={chico ? 18 : 24} fill="white"/>
+        </div>
+      )}
+      <h1 className="text-sm font-black text-white tracking-tighter uppercase truncate">
+        {nombre}
+      </h1>
+    </div>
+  );
 
   return (
     <>
-      {/* BARRA SUPERIOR (SOLO MÓVIL) */}
+      {/* Barra superior móvil */}
       <div className="md:hidden fixed top-0 left-0 w-full h-16 bg-slate-900 flex items-center justify-between px-4 z-40 shadow-lg border-b border-slate-800">
-        <div className="flex items-center gap-3">
-          {datosEmpresa.logo ? (
-            <img src={datosEmpresa.logo} alt="Logo" className="h-8 w-8 object-contain rounded-lg bg-white p-1" />
-          ) : (
-            <div className="p-1.5 bg-blue-600 rounded-lg text-white">
-              <Zap size={18} fill="white"/>
-            </div>
-          )}
-          <h1 className="text-sm font-black text-white tracking-tighter uppercase truncate">
-            {datosEmpresa.nombre}
-          </h1>
-        </div>
-        <button 
-          onClick={() => setMenuAbierto(true)} 
-          className="p-2 text-slate-300 hover:text-white transition-colors"
-        >
+        <Marca chico />
+        <button onClick={() => setMenuAbierto(true)} className="p-2 text-slate-300 hover:text-white">
           <Menu size={24} />
         </button>
       </div>
 
-      {/* OVERLAY OSCURO PARA MÓVIL */}
       {menuAbierto && (
-        <div 
-          className="md:hidden fixed inset-0 bg-black/60 z-40 backdrop-blur-sm transition-opacity" 
-          onClick={() => setMenuAbierto(false)}
-        />
+        <div className="md:hidden fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
+             onClick={() => setMenuAbierto(false)} />
       )}
 
-      {/* BARRA LATERAL (Fija en PC, deslizante en móvil) */}
+      {/* Sidebar */}
       <div className={`
-        fixed top-0 left-0 h-screen bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-50 w-64 
+        fixed top-0 left-0 h-screen bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-50 w-64
         transition-transform duration-300 ease-in-out
-        ${menuAbierto ? 'translate-x-0' : '-translate-x-full'} 
-        md:translate-x-0
+        ${menuAbierto ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
       `}>
         <div className="p-6 md:p-8 flex items-center justify-between border-b border-white/5 h-16 md:h-auto">
-          <div className="flex items-center gap-3 overflow-hidden">
-            {datosEmpresa.logo ? (
-              <img src={datosEmpresa.logo} alt="Logo" className="h-10 w-10 object-contain rounded-lg bg-white p-1 shrink-0 hidden md:block" />
-            ) : (
-              <div className="p-2 bg-blue-600 rounded-xl text-white shadow-lg shrink-0 hidden md:block">
-                <Zap size={24} fill="white"/>
-              </div>
-            )}
-            <h1 className="text-sm font-black text-white tracking-tighter uppercase leading-tight truncate hidden md:block">
-              {datosEmpresa.nombre}
-            </h1>
-            <span className="md:hidden font-black text-white uppercase tracking-widest text-xs">Menú</span>
-          </div>
-          
-          <button 
-            onClick={() => setMenuAbierto(false)} 
-            className="md:hidden p-2 text-slate-400 hover:text-white transition-colors"
-          >
+          <div className="hidden md:block"><Marca /></div>
+          <span className="md:hidden font-black text-white uppercase tracking-widest text-xs">Menú</span>
+          <button onClick={() => setMenuAbierto(false)} className="md:hidden p-2 text-slate-400 hover:text-white">
             <X size={20} />
           </button>
         </div>
 
         <nav className="flex-1 px-4 space-y-2 mt-4 md:mt-8 overflow-y-auto">
           {menuItems.map((item) => (
-            <Link 
-              key={item.path} 
-              to={item.path} 
+            <Link key={item.path} to={item.path}
               className={`flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all font-bold text-[13px] ${
-                location.pathname === item.path 
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 md:translate-x-1' 
+                location.pathname === item.path
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 md:translate-x-1'
                   : 'hover:bg-slate-800 hover:text-white'
-              }`}
-            >
+              }`}>
               {item.icon} {item.label}
             </Link>
           ))}
         </nav>
 
-        <div className="p-8 border-t border-white/5">
-          <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] text-center leading-relaxed">
-            2026
-          </p>
+        {/* Usuario + Logout */}
+        <div className="p-4 border-t border-white/5 space-y-3">
+          <div className="px-2">
+            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+              {esDueno ? 'Dueño' : 'Empleado'}
+            </p>
+            <p className="text-[11px] font-bold text-slate-300 truncate" title={session?.user?.email}>
+              {session?.user?.email}
+            </p>
+          </div>
+
+          <button onClick={cerrarSesion}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-[13px] font-bold
+                       border border-slate-700 text-slate-400 hover:text-rose-400 hover:border-rose-500/40
+                       hover:bg-rose-500/5 transition-all">
+            <LogOut size={16} /> Cerrar Sesión
+          </button>
         </div>
       </div>
     </>

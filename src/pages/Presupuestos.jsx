@@ -4,8 +4,10 @@ import { Plus, Trash2, Save, FileDown, User, Calendar, CreditCard, FileText, Cal
 import { supabase } from '../supabaseClient.js';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useNegocio } from '../context/NegocioContext.jsx';
 
 export default function Presupuestos({ session }) {
+  const { negocioId, puede, esDueno } = useNegocio();
   const location = useLocation();
   const navigate = useNavigate();
 

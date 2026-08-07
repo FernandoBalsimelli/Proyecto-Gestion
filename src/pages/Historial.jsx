@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Edit2, Trash2, FileText, CheckCircle, Clock } from 'lucide-react';
 import { supabase } from '../supabaseClient.js';
+import { useNegocio } from '../context/NegocioContext.jsx';
 
 export default function Historial({ session }) {
+  const { negocioId, puede, esDueno } = useNegocio();
   const navigate = useNavigate(); 
   const [ventas, setVentas] = useState([]);
   const [busqueda, setBusqueda] = useState('');

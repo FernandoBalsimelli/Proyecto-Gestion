@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { useNegocio } from '../context/NegocioContext.jsx';
 import { Save, Upload, Building, CreditCard, FileText, Settings, Image as ImageIcon } from 'lucide-react';
 
 export default function Configuracion({ session }) {
+  const { negocioId, puede, esDueno } = useNegocio();
   const [loading, setLoading] = useState(false);
   const [cfg, setCfg] = useState({
     nombre: '', direccion: '', telefono: '', logo: null,
@@ -12,12 +14,20 @@ export default function Configuracion({ session }) {
   });
 
   useEffect(() => {
+    if (!negocioId) return;
     const loadConfig = async () => {
-      const { data } = await supabase.from('configuracion').select('*').eq('user_id', session.user.id).single();
-      if (data) setCfg(data);
+      const { data } = await supabase
+        .from('configuracion')
+        .select('*')
+        .eq('negocio_id', negocioId)
+        .maybeSingle();
+      if (data) {
+        const { id, created_at, user_id, negocio_id, ...limpio } = data;
+        setCfg(prev => ({ ...prev, ...limpio }));
+      }
     };
     loadConfig();
-  }, []);
+  }, [negocioId]);
 
   const handleFileUpload = (e, field) => {
     const file = e.target.files[0];
@@ -26,12 +36,14 @@ export default function Configuracion({ session }) {
     reader.readAsDataURL(file);
   };
 
-  const saveConfig = async () => {
+   const saveConfig = async () => {
+    if (!negocioId) return alert('Cargando negocio, espera un momento.');
     setLoading(true);
-    const { error } = await supabase.from('configuracion').upsert({ 
-      user_id: session.user.id, 
-      ...cfg 
-    });
+    const { id, created_at, ...limpio } = cfg;
+    const { error } = await supabase.from('configuracion').upsert(
+      { ...limpio, negocio_id: negocioId, user_id: session.user.id },
+      { onConflict: 'negocio_id' }
+    );
     if (error) alert("Error al guardar: " + error.message);
     else alert("Configuración guardada exitosamente");
     setLoading(false);

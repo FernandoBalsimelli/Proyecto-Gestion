@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient.js';
+import { useNegocio } from '../context/NegocioContext.jsx';
 import { DollarSign, TrendingDown, Wallet, Plus, Trash2, Calendar, FileText, Tag, Save, LayoutGrid } from 'lucide-react';
 
 export default function Finanzas({ session }) {
+  const { negocioId, puede, esDueno } = useNegocio();
   const [gastos, setGastos] = useState([]);
   const [ingresosTotales, setIngresosTotales] = useState(0);
   const [cargando, setCargando] = useState(false);

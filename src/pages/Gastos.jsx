@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, Fuel, Hammer, Utensils, Trash2, PlusCircle, Receipt, Truck } from 'lucide-react';
 import { supabase } from '../supabaseClient.js';
+import { useNegocio } from '../context/NegocioContext.jsx';
 
 export default function Gastos({ session }) {
+  const { negocioId, puede, esDueno } = useNegocio();
   const [gastos, setGastos] = useState([]);
   const [cargando, setCargando] = useState(false);
 

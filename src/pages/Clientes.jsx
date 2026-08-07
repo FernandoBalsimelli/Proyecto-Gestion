@@ -4,6 +4,7 @@ import {
   MapPin, AlertTriangle, X, Tag
 } from 'lucide-react';
 import { supabase } from '../supabaseClient.js';
+import { useNegocio } from '../context/NegocioContext.jsx';
 
 /* ─────────── Helpers de validación ─────────── */
 
@@ -33,6 +34,7 @@ const FORM_VACIO = { nombre: '', alias: '', telefono: '', correo: '', direccion:
 /* ─────────── Componente ─────────── */
 
 export default function Clientes({ session }) {
+  const { negocioId, puede, esDueno } = useNegocio();
   const [clientes, setClientes] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [editandoId, setEditandoId] = useState(null);
@@ -107,6 +109,11 @@ export default function Clientes({ session }) {
     ev.preventDefault();
     if (!validar()) return;
 
+        if (!negocioId) {
+      setErrores({ general: 'Aún cargando el negocio, espera un segundo e intenta de nuevo.' });
+      return;
+    }
+
     setCargando(true);
     const payload = {
       nombre: formData.nombre.trim(),
@@ -119,8 +126,8 @@ export default function Clientes({ session }) {
     try {
       const { error } = editandoId
         ? await supabase.from('clientes').update(payload).eq('id', editandoId)
-        : await supabase.from('clientes').insert([{ user_id: session.user.id, ...payload }]);
-
+        : await supabase.from('clientes').insert([{ negocio_id: negocioId, user_id: session.user.id, ...payload }]);
+       
       if (error) {
         // 23505 = violación de índice único (teléfono repetido)
         if (error.code === '23505') {

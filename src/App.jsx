@@ -9,6 +9,9 @@ import Historial from './pages/Historial.jsx';
 import Finanzas from './pages/Finanzas.jsx';
 import Clientes from './pages/Clientes.jsx';
 import Configuracion from './pages/Configuracion.jsx';
+import { NegocioProvider, useNegocio, Protegido } from './context/NegocioContext.jsx';
+import Equipo from './pages/Equipo.jsx';
+import Administracion from './pages/Administracion.jsx';
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -114,20 +117,62 @@ export default function App() {
 
 
   return (
-<div className="flex bg-slate-50 min-h-screen font-sans">
-      
-      {/* 1. EL MENÚ RESPONSIVO */}
-      <Sidebar session={session} />
+  <NegocioProvider session={session}>
+    <Shell session={session} />
+  </NegocioProvider>
+);
+}
 
+function Shell({ session }) {
+  const { cargando, error, esSuperAdmin } = useNegocio();
+
+  if (cargando) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-white text-xl animate-pulse">Cargando negocio...</div>
+      </div>
+    );
+  }
+
+  if (error === 'SIN_NEGOCIO' && !esSuperAdmin) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="bg-slate-800 p-8 rounded-2xl max-w-md text-center border border-slate-700">
+          <h2 className="text-white font-bold text-xl mb-2">Cuenta sin negocio asignado</h2>
+          <p className="text-slate-400 text-sm mb-6">
+            Tu cuenta existe pero no está vinculada a ningún negocio. Pídele al
+            administrador que te envíe una invitación con este correo.
+          </p>
+          <button
+            onClick={() => supabase.auth.signOut()}
+            className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-2.5 rounded-xl font-medium"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex bg-slate-50 min-h-screen font-sans">
+      <Sidebar session={session} />
       <div className="flex-1 md:ml-64 pt-16 md:pt-0 min-h-screen w-full overflow-x-hidden">
         <Routes>
           <Route path="/" element={<Dashboard session={session} />} />
           <Route path="/presupuestos" element={<Presupuestos session={session} />} />
           <Route path="/historial" element={<Historial session={session} />} />
-          <Route path="/finanzas" element={<Finanzas session={session} />} />
+          <Route path="/finanzas" element={
+            <Protegido permiso="ver_finanzas"><Finanzas session={session} /></Protegido>
+          } />
           <Route path="/clientes" element={<Clientes session={session} />} />
-          <Route path="/configuracion" element={<Configuracion session={session} />} />
-          
+          <Route path="/configuracion" element={
+            <Protegido permiso="editar_configuracion"><Configuracion session={session} /></Protegido>
+          } />
+          <Route path="/equipo" element={
+            <Protegido permiso="gestionar_equipo"><Equipo /></Protegido>
+          } />
+          <Route path="/administracion" element={<Administracion />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
