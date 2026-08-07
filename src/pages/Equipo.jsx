@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient.js';
 import { useNegocio } from '../context/NegocioContext.jsx';
 import { UserPlus, Shield, Trash2, Mail, Check, KeyRound, Copy, RefreshCw } from 'lucide-react';
+import { useUI } from '../components/ui/UI.jsx';
+const { toast, confirmar } = useUI();
 
 const PERMISOS = [
   { key: 'ver_finanzas',        label: 'Ver Finanzas',        desc: 'Ingresos, gastos y utilidad' },
@@ -48,8 +50,8 @@ export default function Equipo() {
   const invitar = async (e) => {
     e.preventDefault();
     const mail = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(mail)) return alert('Correo no válido');
-    if (password.length < 8) return alert('La contraseña debe tener al menos 8 caracteres');
+    if (!/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(mail)) return toast.error('Correo no válido');
+    if (password.length < 8) return toast.error('La contraseña debe tener al menos 8 caracteres');
 
     setEnviando(true);
     try {
@@ -59,27 +61,39 @@ export default function Equipo() {
       setCredenciales({ email: mail, password, existia: r.existia });
       setEmail(''); setPassword(generarPassword());
       cargar();
-    } catch (err) { alert('Error: ' + err.message); }
+    } catch (err) { toast.error('Error: ' + err.message); }
     finally { setEnviando(false); }
   };
 
-  const resetear = async (m) => {
+   const resetear = async (m) => {
+    const ok = await confirmar({
+      titulo: 'Restablecer contraseña',
+      mensaje: `Se generará una contraseña temporal para ${m.email}.\nDeberá cambiarla al entrar.`,
+      okTexto: 'Restablecer',
+    });
+    if (!ok) return;
     const nueva = generarPassword();
-    if (!window.confirm(`¿Asignar una contraseña temporal a ${m.email}?\n\nDeberá cambiarla al entrar.`)) return;
     try {
       await llamar('resetear_password', { miembro_id: m.id, password: nueva });
       setCredenciales({ email: m.email, password: nueva, reset: true });
-    } catch (err) { alert('Error: ' + err.message); }
+      toast.ok('Contraseña restablecida.');
+    } catch (err) { toast.error(err.message); }
   };
 
   const quitar = async (m) => {
-    if (!window.confirm(`¿Eliminar a ${m.email}?\n\nSe borrará su acceso y su cuenta permanentemente.`)) return;
+    const ok = await confirmar({
+      titulo: 'Eliminar miembro',
+      mensaje: `${m.email}\n\nSe borrará su acceso y su cuenta permanentemente.`,
+      okTexto: 'Eliminar', peligro: true,
+    });
+    if (!ok) return;
     try {
       const r = await llamar('eliminar_miembro', { miembro_id: m.id });
-      if (r.aviso) alert(r.aviso);
+      if (r.aviso) toast.warn(r.aviso); else toast.ok('Miembro eliminado.');
       cargar();
-    } catch (err) { alert('Error: ' + err.message); }
+    } catch (err) { toast.error(err.message); }
   };
+
 
   const togglePermiso = async (m, key) => {
     const nuevos = { ...(m.permisos || {}), [key]: !m.permisos?.[key] };
@@ -88,10 +102,7 @@ export default function Equipo() {
     cargar();
   };
 
-  const copiar = (txt) => {
-    navigator.clipboard.writeText(txt);
-    alert('Copiado al portapapeles');
-  };
+   const copiar = (txt) => { navigator.clipboard.writeText(txt); toast.ok('Copiado.'); };
 
   return (
     <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-8">

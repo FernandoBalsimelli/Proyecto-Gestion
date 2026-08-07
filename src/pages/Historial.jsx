@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search, Edit2, Trash2, FileText, X, Download, Copy,
-  MessageCircle, Plus, Wallet, AlertTriangle,
+  MessageCircle, Plus, Wallet, AlertTriangle, CalendarClock
 } from 'lucide-react';
 import { supabase } from '../supabaseClient.js';
 import { useNegocio } from '../context/NegocioContext.jsx';
@@ -13,16 +13,33 @@ import { rangoFechas, enRango, hoyLocal, formatoMX } from '../utils/fecha.js';
 import { exportarCSV, abrirWhatsApp } from '../utils/exportar.js';
 
 const money = (n) => `$${(Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+const diasVencido = (v) => {
+  if (!v.fecha_compromiso || v.estado === 'cancelado') return null;
+  if (num(v.pagado) >= num(v.monto) - 0.01) return null;
+  const hoy = hoyLocal();
+  if (v.fecha_compromiso >= hoy) return null;
+  return Math.floor((new Date(hoy) - new Date(v.fecha_compromiso)) / 86400000);
+};
 const txt = (v) => (v ?? '').toString().toLowerCase();
 const num = (v) => Number(v) || 0;
 
 const ESTADOS = {
-  pagado:    { label: 'Pagado',    color: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
+  pagado: { label: 'Pagado', color: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
   pendiente: { label: 'Pendiente', color: 'bg-amber-50 text-amber-600 border-amber-200' },
   cancelado: { label: 'Cancelado', color: 'bg-slate-100 text-slate-500 border-slate-200' },
 };
 
 export default function Historial({ session }) {
+  const ponerCompromiso = async (v) => {
+    const f = window.prompt('Fecha compromiso de pago (AAAA-MM-DD):', v.fecha_compromiso || hoyLocal());
+    if (f === null) return;
+    const valor = f.trim() || null;
+    if (valor && !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return toast.error('Formato inválido. Usa AAAA-MM-DD.');
+    const { error } = await supabase.from('ventas').update({ fecha_compromiso: valor }).eq('id', v.id);
+    if (error) return toast.error(error.message);
+    toast.ok(valor ? 'Fecha registrada.' : 'Fecha eliminada.');
+    fetchVentas();
+  };
   const { negocioId, puede } = useNegocio();
   const { toast, confirmar } = useUI();
   const navigate = useNavigate();
@@ -143,32 +160,38 @@ export default function Historial({ session }) {
     const q = txt(busqueda);
     return ventas.filter(v => {
       if (periodo !== 'todo' && !enRango(v.fecha, rango)) return false;
+      if (filtroEstado === 'vencidas') {
+        if (diasVencido(v) === null) return false;
+      }
       if (filtroEstado === 'abonadas') {
         if (!(num(v.pagado) > 0 && num(v.pagado) < num(v.monto) - 0.01)) return false;
-      } else if (filtroEstado !== 'todos' && v.estado !== filtroEstado) return false;
+
+      }
+
+      else if (filtroEstado !== 'todos' && v.estado !== filtroEstado) return false;
       if (!q) return true;
       return txt(v.cliente).includes(q) || txt(v.descripcion).includes(q) || txt(v.folio).includes(q);
     });
   }, [ventas, busqueda, filtroEstado, rango, periodo]);
 
   const totales = useMemo(() => ({
-    total:   filtradas.reduce((a, v) => a + num(v.monto), 0),
+    total: filtradas.reduce((a, v) => a + num(v.monto), 0),
     cobrado: filtradas.reduce((a, v) => a + num(v.pagado), 0),
-    saldo:   filtradas.filter(v => v.estado !== 'cancelado')
-                      .reduce((a, v) => a + Math.max(0, num(v.monto) - num(v.pagado)), 0),
+    saldo: filtradas.filter(v => v.estado !== 'cancelado')
+      .reduce((a, v) => a + Math.max(0, num(v.monto) - num(v.pagado)), 0),
   }), [filtradas]);
 
   const exportar = () => {
     if (!filtradas.length) return toast.warn('No hay documentos que exportar.');
     exportarCSV('cotizaciones', [
-      { label: 'Folio',    valor: v => v.folio ?? '' },
-      { label: 'Fecha',    valor: v => v.fecha },
-      { label: 'Cliente',  valor: v => v.cliente || 'Público en General' },
+      { label: 'Folio', valor: v => v.folio ?? '' },
+      { label: 'Fecha', valor: v => v.fecha },
+      { label: 'Cliente', valor: v => v.cliente || 'Público en General' },
       { label: 'Concepto', valor: v => v.descripcion || '' },
-      { label: 'Estado',   valor: v => v.estado },
-      { label: 'Total',    valor: v => num(v.monto).toFixed(2) },
-      { label: 'Abonado',  valor: v => num(v.pagado).toFixed(2) },
-      { label: 'Saldo',    valor: v => Math.max(0, num(v.monto) - num(v.pagado)).toFixed(2) },
+      { label: 'Estado', valor: v => v.estado },
+      { label: 'Total', valor: v => num(v.monto).toFixed(2) },
+      { label: 'Abonado', valor: v => num(v.pagado).toFixed(2) },
+      { label: 'Saldo', valor: v => Math.max(0, num(v.monto) - num(v.pagado)).toFixed(2) },
     ], filtradas);
     toast.ok('Archivo descargado.');
   };
@@ -212,11 +235,10 @@ export default function Historial({ session }) {
           )}
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {[['todos','Todos'],['pendiente','Pendiente'],['abonadas','Con abono'],['pagado','Pagado'],['cancelado','Cancelado']].map(([id, lbl]) => (
+          {[['todos', 'Todos'], ['pendiente', 'Pendiente'], ['abonadas', 'Con abono'], ['vencidas', 'Vencidas'], ['pagado', 'Pagado'], ['cancelado', 'Cancelado']].map(([id, lbl]) => (
             <button key={id} onClick={() => setFiltroEstado(id)}
-              className={`shrink-0 px-4 py-2 rounded-xl text-[11px] font-black uppercase transition ${
-                filtroEstado === id ? 'bg-slate-900 text-white shadow-lg'
-                : 'bg-white text-slate-500 border border-slate-200 hover:border-slate-400'}`}>
+              className={`shrink-0 px-4 py-2 rounded-xl text-[11px] font-black uppercase transition ${filtroEstado === id ? 'bg-slate-900 text-white shadow-lg'
+                  : 'bg-white text-slate-500 border border-slate-200 hover:border-slate-400'}`}>
               {lbl}
             </button>
           ))}
@@ -248,6 +270,11 @@ export default function Historial({ session }) {
                   <div className={`p-3 rounded-2xl border shrink-0 ${est.color}`}><FileText size={22} /></div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
+                      {diasVencido(v) !== null && (
+                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 flex items-center gap-1">
+                          <CalendarClock size={10} /> Vencido {diasVencido(v)}d
+                        </span>
+                      )}
                       {v.folio && <span className="text-[10px] font-black text-slate-300 tracking-widest">#{String(v.folio).padStart(4, '0')}</span>}
                       <h4 className="font-black text-slate-800 truncate">{v.cliente || 'Público en General'}</h4>
                       {parcial && (
@@ -301,6 +328,11 @@ export default function Historial({ session }) {
                     <button onClick={() => enviarWhatsApp(v)} title="Enviar por WhatsApp"
                       className="p-2 text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition">
                       <MessageCircle size={17} />
+                    </button>
+                                        <button onClick={() => ponerCompromiso(v)} title="Fecha compromiso de pago"
+                      className={`p-2 rounded-xl transition ${v.fecha_compromiso
+                        ? 'text-amber-600 bg-amber-50' : 'text-slate-300 hover:text-amber-600 hover:bg-amber-50'}`}>
+                      <CalendarClock size={17} />
                     </button>
                     <button onClick={() => duplicar(v)} title="Duplicar"
                       className="p-2 text-slate-300 hover:text-primario hover:bg-primario-suave rounded-xl transition">

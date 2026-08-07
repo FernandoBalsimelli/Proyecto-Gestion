@@ -239,7 +239,26 @@ Deno.serve(async (req) => {
 
       return json({ ok: true })
     }
+        /* ══════ CREAR CUENTA SUELTA (para volverla admin) ══════ */
+    if (accion === 'crear_cuenta') {
+      if (!esSuperAdmin) return json({ error: 'No autorizado' }, 403)
 
+      const email = String(p.email || '').trim().toLowerCase()
+      const password = String(p.password || '')
+      if (!EMAIL_RE.test(email)) return json({ error: 'Correo no válido' }, 400)
+      if (password.length < 8)   return json({ error: 'Mínimo 8 caracteres' }, 400)
+
+      const { data: lista } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      const existente = lista?.users?.find(u => u.email?.toLowerCase() === email)
+      if (existente) return json({ ok: true, user_id: existente.id, existia: true })
+
+      const { data: nuevo, error } = await admin.auth.admin.createUser({
+        email, password, email_confirm: true,
+        user_metadata: { debe_cambiar_password: true },
+      })
+      if (error) return json({ error: error.message }, 400)
+      return json({ ok: true, user_id: nuevo.user.id, existia: false })
+    }
     return json({ error: 'Acción no reconocida' }, 400)
   } catch (e) {
     return json({ error: String(e?.message ?? e) }, 500)

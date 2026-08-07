@@ -2,13 +2,14 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Plus, Trash2, Save, FileDown, User, Calendar, CreditCard,
-  FileText, Calculator, CheckCircle, Copy,
+  FileText, Calculator, CheckCircle, Copy, LayoutGrid, BookmarkPlus
 } from 'lucide-react';
 import { supabase } from '../supabaseClient.js';
 import { useNegocio } from '../context/NegocioContext.jsx';
 import { generarDocumentoPDF } from '../utils/pdfGenerador.js';
 import { hoyLocal, formatoMX } from '../utils/fecha.js';
 import { useUI } from '../components/ui/UI.jsx';
+import ModalCatalogo from '../components/ModalCatalogo.jsx';
 
 const money = (n) => `$${(Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
 
@@ -27,6 +28,7 @@ function AutoTextarea({ value, onChange, className = '', ...props }) {
 const FILA_VACIA = { cantidad: 1, descripcion: '', precio: '' };
 
 export default function Presupuestos({ session }) {
+  const [catalogoAbierto, setCatalogoAbierto] = useState(false);
   const { toast } = useUI();
   const { negocioId } = useNegocio();
   const location = useLocation();
@@ -119,6 +121,22 @@ export default function Presupuestos({ session }) {
   const agregarFila = () => setConceptos(c => [...c, { ...FILA_VACIA }]);
   const duplicarFila = (i) =>
     setConceptos(c => [...c.slice(0, i + 1), { ...c[i] }, ...c.slice(i + 1)]);
+    const agregarDelCatalogo = (item) => {
+    setConceptos(c => {
+      const vacia = c.length === 1 && !c[0].descripcion.trim() && !c[0].precio;
+      return vacia ? [item] : [...c, item];
+    });
+  };
+  const guardarEnCatalogo = async (c) => {
+    if (!c.descripcion.trim()) return toast.error('Escribe una descripción primero.');
+    const { error } = await supabase.from('servicios').insert([{
+      negocio_id: negocioId,
+      descripcion: c.descripcion.trim(),
+      precio: Number(c.precio) || 0,
+    }]);
+    if (error) return toast.error('Error: ' + error.message);
+    toast.ok('Guardado en el catálogo.');
+  };
   const eliminarFila = (i) =>
     setConceptos(c => (c.length === 1 ? [{ ...FILA_VACIA }] : c.filter((_, j) => j !== i)));
 
@@ -162,7 +180,7 @@ export default function Presupuestos({ session }) {
     const limpios = conceptosLimpios();
     if (!limpios.length) return toast.error('Agrega al menos un concepto con descripción y cantidad.');
     if (totalNeto <= 0) return toast.error('El total está en ceros. Agrega precios válidos.');
-    if (!negocioId) return toast.ok('Cargando negocio, espera un momento.');
+    if (!negocioId) return toast.error('Cargando negocio, espera un momento.');
 
     setCargando(true);
     try {
@@ -341,14 +359,19 @@ export default function Presupuestos({ session }) {
 
         {/* ══ CONCEPTOS ══ */}
         <div className="xl:col-span-2 space-y-3">
-          <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center gap-2 flex-wrap">
             <h3 className="font-bold text-slate-700">Conceptos del servicio</h3>
-            <button onClick={agregarFila}
-              className="text-primario bg-primario-suave hover:bg-primario hover:text-white px-3.5 py-2 rounded-xl font-bold flex items-center gap-1.5 text-sm transition">
-              <Plus size={16} /> Agregar línea
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => setCatalogoAbierto(true)}
+                className="bg-slate-900 text-white px-3.5 py-2 rounded-xl font-bold flex items-center gap-1.5 text-sm hover:bg-slate-800 transition shadow-lg">
+                <LayoutGrid size={16} /> Catálogo
+              </button>
+              <button onClick={agregarFila}
+                className="text-primario bg-primario-suave hover:bg-primario hover:text-white px-3.5 py-2 rounded-xl font-bold flex items-center gap-1.5 text-sm transition">
+                <Plus size={16} /> Línea
+              </button>
+            </div>
           </div>
-
           {conceptos.map((c, i) => {
             const importe = (Number(c.cantidad) || 0) * (Number(c.precio) || 0);
             return (
@@ -364,6 +387,10 @@ export default function Presupuestos({ session }) {
                     className="flex-1 p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 font-medium resize-none leading-snug focus:bg-white focus:ring-2 focus:ring-primario/10 transition"
                   />
                   <div className="flex flex-col gap-1 shrink-0">
+                                        <button onClick={() => guardarEnCatalogo(c)} title="Guardar en catálogo"
+                      className="p-2 text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition">
+                      <BookmarkPlus size={16} />
+                    </button>
                     <button onClick={() => duplicarFila(i)} title="Duplicar"
                       className="p-2 text-slate-300 hover:text-primario hover:bg-primario-suave rounded-lg transition">
                       <Copy size={16} />
@@ -428,6 +455,9 @@ export default function Presupuestos({ session }) {
           </button>
         </div>
       </div>
+            {catalogoAbierto && (
+        <ModalCatalogo onCerrar={() => setCatalogoAbierto(false)} onAgregar={agregarDelCatalogo} />
+      )}
     </div>
   );
 }
