@@ -3,7 +3,6 @@ import { supabase } from '../supabaseClient.js';
 import { useNegocio } from '../context/NegocioContext.jsx';
 import { UserPlus, Shield, Trash2, Mail, Check, KeyRound, Copy, RefreshCw } from 'lucide-react';
 import { useUI } from '../components/ui/UI.jsx';
-const { toast, confirmar } = useUI();
 
 const PERMISOS = [
   { key: 'ver_finanzas',        label: 'Ver Finanzas',        desc: 'Ingresos, gastos y utilidad' },
@@ -20,6 +19,7 @@ const generarPassword = () => {
 };
 
 export default function Equipo() {
+  const { toast, confirmar } = useUI();
   const { negocioId, miembro: yo, esDueno } = useNegocio();
   const [miembros, setMiembros] = useState([]);
   const [email, setEmail] = useState('');
