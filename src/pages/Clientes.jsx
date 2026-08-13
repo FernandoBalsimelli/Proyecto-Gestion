@@ -1,483 +1,392 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   UserPlus, Search, Edit2, Trash2, Save, Mail, Smartphone,
-  MapPin, AlertTriangle, X, Tag
+  MapPin, AlertTriangle, X,
 } from 'lucide-react';
 import { supabase } from '../supabaseClient.js';
 import { useNegocio } from '../context/NegocioContext.jsx';
 import { useUI } from '../components/ui/UI.jsx';
+import {
+  LIMITES, EMAIL_RE, telefonoMX, formatearTelefono, soloDigitos,
+  limpiarTexto, textoParaGuardar, normalizar, verificarPolitica,
+} from '../utils/seguridad.js';
 
-/* ─────────── Helpers de validación ─────────── */
+const VACIO = { nombre: '', alias: '', telefono: '', correo: '', direccion: '' };
 
-const soloDigitos = (v) => (v || '').replace(/\D/g, '');
+const MsgError = ({ msg }) =>
+  msg ? (
+    <p className="text-[11px] font-bold text-rose-600 mt-1 ml-1 flex items-start gap-1">
+      <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+      {msg}
+    </p>
+  ) : null;
 
-// 614 123 4567  (visual, no se guarda así)
-const formatearTel = (v) => {
-  const d = soloDigitos(v).slice(0, 10);
-  if (d.length <= 3) return d;
-  if (d.length <= 6) return `${d.slice(0, 3)} ${d.slice(3)}`;
-  return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
+/** Contador de caracteres: solo aparece cuando el usuario se acerca al tope. */
+const Contador = ({ valor, limite }) => {
+  const usado = (valor || '').length;
+  if (usado < limite * 0.8) return null;
+  return (
+    <p className={`text-[10px] font-bold mt-1 ml-1 text-right ${usado >= limite ? 'text-rose-500' : 'text-slate-400'}`}>
+      {usado}/{limite}
+    </p>
+  );
 };
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/;
-
-// "José  Pérez " -> "jose perez"  (para comparar nombres)
-const normalizar = (v) =>
-  (v || '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ');
-
-const FORM_VACIO = { nombre: '', alias: '', telefono: '', correo: '', direccion: '' };
-
-// arriba del export default
-const MsgError = ({ msg }) => msg ? (
-  <p className="text-[11px] font-bold text-red-600 mt-1 ml-1 flex items-start gap-1">
-    <AlertTriangle size={12} className="mt-0.5 shrink-0" /> {msg}
-  </p>
-) : null;
-
-// uso:  <MsgError msg={errores.nombre} />
-
-/* ─────────── Componente ─────────── */
 
 export default function Clientes({ session }) {
   const { toast, confirmar } = useUI();
-  const { negocioId, puede, esDueno } = useNegocio();
+  const { negocioId, puede } = useNegocio();
+
   const [clientes, setClientes] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [editandoId, setEditandoId] = useState(null);
   const [cargando, setCargando] = useState(false);
-  const [formData, setFormData] = useState(FORM_VACIO);
+  const [formData, setFormData] = useState(VACIO);
   const [errores, setErrores] = useState({});
+  const telRef = useRef(null);
 
-  /* ---------- Carga ---------- */
-  /* ---------- Carga ---------- */
+  /* ─────────── Datos ─────────── */
   const fetchClientes = async () => {
     if (!negocioId) return;
     const { data, error } = await supabase
       .from('clientes')
-      .select('*')
+      .select('id, nombre, alias, telefono, correo, direccion')
       .eq('negocio_id', negocioId)
-      .order('nombre', { ascending: true });
-
-    if (error) console.error('Error al cargar clientes:', error.message);
+      .order('nombre')
+      .limit(2000);                               // tope duro: evita traer la tabla entera
+    if (error) toast.error('No se pudieron cargar los clientes: ' + error.message);
     else setClientes(data || []);
   };
 
-  useEffect(() => { fetchClientes(); }, [negocioId]);
+  useEffect(() => { fetchClientes(); /* eslint-disable-next-line */ }, [negocioId]);
 
-  /* ---------- Detección de nombre repetido (en vivo) ---------- */
-  const nombreDuplicado = useMemo(() => {
+  /* ─────────── Validación ─────────── */
+  const duplicado = useMemo(() => {
     const n = normalizar(formData.nombre);
-    if (n.length < 3) return false;
-    return clientes.some(c => normalizar(c.nombre) === n && c.id !== editandoId);
+    return n.length >= 3 && clientes.some(c => normalizar(c.nombre) === n && c.id !== editandoId);
   }, [formData.nombre, clientes, editandoId]);
 
-  /* ---------- Cambios de campo ---------- */
-  const manejarCambio = (e) => {
-    const { name, value } = e.target;
-    // El teléfono sólo acepta dígitos, máximo 10
-    const limpio = name === 'telefono' ? soloDigitos(value).slice(0, 10) : value;
-    setFormData(prev => ({ ...prev, [name]: limpio }));
-    setErrores(prev => ({ ...prev, [name]: undefined, general: undefined }));
+  const setCampo = (name, valor) => {
+    setFormData(p => ({ ...p, [name]: valor }));
+    setErrores(p => ({ ...p, [name]: undefined, general: undefined }));
   };
 
-  /* ---------- Validación ---------- */
+  const manejarCambio = (e) => {
+    const { name, value } = e.target;
+    const limite = LIMITES[name] ?? 240;
+    const limpio =
+      name === 'correo'
+        ? limpiarTexto(value.toLowerCase(), limite)
+        : limpiarTexto(value, limite, { multilinea: name === 'direccion' });
+    setCampo(name, limpio);
+  };
+
+  /**
+   * TELÉFONO — la corrección clave.
+   * El input es type="text": los type="number"/"tel" del navegador dejan pasar
+   * "e", "+" y "-". Aquí el valor mostrado siempre se deriva de los dígitos
+   * reales, así que teclear, pegar "+52 (614) 123-45-67" o autocompletar
+   * terminan igual: 10 dígitos limpios.
+   */
+  const manejarTelefono = (e) => {
+    const soloNums = telefonoMX(e.target.value);
+    setCampo('telefono', soloNums);
+  };
+
   const validar = () => {
     const e = {};
     const nombre = formData.nombre.trim();
-    const tel = soloDigitos(formData.telefono);
+    const tel = telefonoMX(formData.telefono);
     const mail = formData.correo.trim();
 
     if (nombre.length < 3) e.nombre = 'El nombre debe tener al menos 3 caracteres.';
-
-    // Teléfono: OPCIONAL, pero si lo escribes debe ser válido
-    if (tel.length > 0) {
-      if (tel.length !== 10) e.telefono = 'El teléfono debe tener 10 dígitos (lada + número).';
-      else {
-        const rep = clientes.find(c => soloDigitos(c.telefono) === tel && c.id !== editandoId);
-        if (rep) e.telefono = `Ese teléfono ya está registrado a nombre de "${rep.nombre}".`;
-      }
-    }
-
-    // Correo: OPCIONAL, pero si lo escribes debe ser válido
-    if (mail.length > 0 && !EMAIL_RE.test(mail)) {
-      e.correo = 'Correo no válido. Ejemplo: nombre@dominio.com';
-    }
-
-    // Alias obligatorio SÓLO si el nombre ya existe
-    if (nombreDuplicado && formData.alias.trim().length < 2) {
-      e.alias = 'Ya existe un cliente con ese nombre. Escribe una referencia para diferenciarlo.';
-    }
+    if (nombre.length > LIMITES.nombre) e.nombre = `Máximo ${LIMITES.nombre} caracteres.`;
+    if (tel && tel.length !== 10) e.telefono = 'El teléfono debe tener 10 dígitos.';
+    if (tel.length === 10 && clientes.some(c => telefonoMX(c.telefono) === tel && c.id !== editandoId))
+      e.telefono = 'Ese teléfono ya pertenece a otro cliente.';
+    if (mail && !EMAIL_RE.test(mail)) e.correo = 'Correo no válido.';
+    if (mail.length > LIMITES.correo) e.correo = `Máximo ${LIMITES.correo} caracteres.`;
+    if (duplicado && formData.alias.trim().length < 2)
+      e.alias = 'Ya hay otro cliente con ese nombre. Agrega una referencia para diferenciarlos.';
 
     setErrores(e);
-    return Object.keys(e).length === 0;
+    return !Object.keys(e).length;
   };
 
-  /* ---------- Guardar ---------- */
+  /* ─────────── Guardar ─────────── */
   const guardarCliente = async (ev) => {
     ev.preventDefault();
-    if (!validar()) return;
+    if (!validar() || !negocioId || cargando) return;
 
-    if (!negocioId) {
-      setErrores({ general: 'Aún cargando el negocio, espera un segundo e intenta de nuevo.' });
-      return;
-    }
+    const bloqueo = verificarPolitica('escritura');
+    if (bloqueo) return toast.warn(bloqueo);
 
     setCargando(true);
     const payload = {
-      nombre: formData.nombre.trim(),
-      alias: formData.alias.trim() || null,
-      telefono: soloDigitos(formData.telefono) || null,
-      correo: formData.correo.trim().toLowerCase() || null,
-      direccion: formData.direccion.trim() || null,
+      nombre: textoParaGuardar(formData.nombre, LIMITES.nombre),
+      alias: textoParaGuardar(formData.alias, LIMITES.alias) || null,
+      telefono: telefonoMX(formData.telefono) || null,
+      correo: textoParaGuardar(formData.correo, LIMITES.correo).toLowerCase() || null,
+      direccion: textoParaGuardar(formData.direccion, LIMITES.direccion, { multilinea: true }) || null,
     };
 
-    try {
-      const { error } = editandoId
-        ? await supabase.from('clientes').update(payload).eq('id', editandoId)
-        : await supabase.from('clientes').insert([{ negocio_id: negocioId, user_id: session.user.id, ...payload }]);
+    const { error } = editandoId
+      ? await supabase.from('clientes').update(payload).eq('id', editandoId)
+      : await supabase.from('clientes').insert([{
+          negocio_id: negocioId,
+          user_id: session?.user?.id || null,
+          ...payload,
+        }]);
 
-      if (error) {
-        // 23505 = violación de índice único (teléfono repetido)
-        if (error.code === '23505') {
-          setErrores({ telefono: 'Ese teléfono ya pertenece a otro cliente.' });
-        } else {
-          setErrores({ general: error.message });
-        }
-        return;
-      }
-
-      await fetchClientes();
-      resetForm();
-    } finally {
-      setCargando(false);
+    setCargando(false);
+    if (error) {
+      return toast.error(
+        error.code === '23505'
+          ? 'Ese teléfono ya pertenece a otro cliente.'
+          : 'No se pudo guardar: ' + error.message
+      );
     }
-  };
 
-  const resetForm = () => {
-    setFormData(FORM_VACIO);
+    toast.ok(editandoId ? 'Cliente actualizado.' : 'Cliente registrado.');
+    setFormData(VACIO);
     setEditandoId(null);
     setErrores({});
+    fetchClientes();
   };
 
-  const iniciarEdicion = (c) => {
+  const editar = (c) => {
     setEditandoId(c.id);
-    setErrores({});
     setFormData({
       nombre: c.nombre || '',
       alias: c.alias || '',
-      telefono: soloDigitos(c.telefono) || '',
+      telefono: telefonoMX(c.telefono),
       correo: c.correo || '',
       direccion: c.direccion || '',
     });
+    setErrores({});
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const eliminarCliente = async (id, nombre) => {
-  const ok = await confirmar({
-    titulo: 'Eliminar cliente', mensaje: `"${nombre}" se eliminará permanentemente.`,
-    okTexto: 'Eliminar', peligro: true,
-  });
-  if (!ok) return;
-  const { error } = await supabase.from('clientes').delete().eq('id', id);
-  if (error) return toast.error('Error al eliminar: ' + error.message);
-  toast.ok('Cliente eliminado.');
-  fetchClientes();
-};
+  const eliminar = async (c) => {
+    const ok = await confirmar({
+      titulo: 'Eliminar cliente',
+      mensaje: `"${c.nombre}" se eliminará permanentemente.`,
+      okTexto: 'Eliminar',
+      peligro: true,
+    });
+    if (!ok) return;
+    const { error } = await supabase.from('clientes').delete().eq('id', c.id);
+    if (error) return toast.error('No se pudo eliminar: ' + error.message);
+    toast.ok('Cliente eliminado.');
+    if (editandoId === c.id) { setEditandoId(null); setFormData(VACIO); }
+    fetchClientes();
+  };
 
-  /* ---------- Filtro ---------- */
-  const clientesFiltrados = useMemo(() => {
+  /* ─────────── Filtro ─────────── */
+  const filtrados = useMemo(() => {
     const q = normalizar(busqueda);
+    const digits = soloDigitos(busqueda);
     if (!q) return clientes;
     return clientes.filter(c =>
       normalizar(c.nombre).includes(q) ||
       normalizar(c.alias).includes(q) ||
-      soloDigitos(c.telefono).includes(soloDigitos(busqueda))
+      (digits.length >= 3 && soloDigitos(c.telefono).includes(digits))
     );
   }, [clientes, busqueda]);
 
-  // Marca visualmente los nombres que se repiten en la lista
-  const conteoNombres = useMemo(() => {
-    const m = {};
-    clientes.forEach(c => { const n = normalizar(c.nombre); m[n] = (m[n] || 0) + 1; });
-    return m;
-  }, [clientes]);
-
-  const folioDe = (c) =>
-    c.folio != null ? `#${String(c.folio).padStart(4, '0')}` : `#${String(c.id).slice(-4)}`;
-
-  const inputBase =
-    'w-full p-3 rounded-xl border font-bold outline-none transition focus:bg-white focus:ring-2';
   const cls = (campo) =>
-    `${inputBase} ${errores[campo]
-      ? 'bg-red-50 border-red-300 focus:ring-red-500/20'
-      : 'bg-slate-50 border-slate-100 focus:ring-blue-500/10'}`;
+    `w-full p-3 rounded-xl border font-bold outline-none transition ${
+      errores[campo] ? 'bg-rose-50 border-rose-300' : 'bg-slate-50 border-slate-100 focus:bg-white'
+    }`;
 
-  /* ---------- Render ---------- */
+  /* ─────────── Render ─────────── */
   return (
     <div className="p-4 md:p-8 space-y-8">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center gap-3">
         <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tighter uppercase">
-          Directorio de Clientes
+          Directorio de clientes
         </h2>
-        <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
+        <span className="text-xs font-black text-slate-400 uppercase shrink-0">
           {clientes.length} registrados
         </span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-        {/* ══ FORMULARIO ══ */}
-        <div className="lg:col-span-1">
-          <form
-            onSubmit={guardarCliente}
-            noValidate
-            className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 lg:sticky lg:top-8 space-y-4"
-          >
-            <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2 mb-2">
-              {editandoId
-                ? <Edit2 size={20} className="text-blue-600" />
-                : <UserPlus size={20} className="text-blue-600" />}
-              {editandoId ? 'Actualizar Cliente' : 'Nuevo Cliente'}
-            </h3>
+        {/* ══ Formulario ══ */}
+        <form onSubmit={guardarCliente} noValidate
+          className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 lg:sticky lg:top-8 space-y-4 h-fit">
+          <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2">
+            <UserPlus size={20} className="text-primario" />
+            {editandoId ? 'Actualizar cliente' : 'Nuevo cliente'}
+          </h3>
 
-            {errores.general && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-bold p-3 rounded-xl">
-                {errores.general}
-              </div>
-            )}
+          {errores.general && (
+            <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold p-3 rounded-xl">
+              {errores.general}
+            </div>
+          )}
 
-            {/* Nombre */}
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">
-                Nombre Completo *
-              </label>
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase">Nombre completo *</label>
+            <input name="nombre" maxLength={LIMITES.nombre} value={formData.nombre}
+              onChange={manejarCambio} className={cls('nombre')} placeholder="Ej. Juan Pérez" />
+            <MsgError msg={errores.nombre} />
+            <Contador valor={formData.nombre} limite={LIMITES.nombre} />
+          </div>
+
+          {duplicado && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] font-bold text-amber-700">
+              Ya existe un cliente con este nombre. Agrega una referencia para distinguirlos.
+            </div>
+          )}
+
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase">Referencia / alias</label>
+            <input name="alias" maxLength={LIMITES.alias} value={formData.alias}
+              onChange={manejarCambio} className={cls('alias')} placeholder="Ej. Taller Centro" />
+            <MsgError msg={errores.alias} />
+          </div>
+
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase">Teléfono (opcional)</label>
+            <div className="relative">
+              <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+              {/*
+                type="text" + inputMode="numeric" = teclado numérico en celular
+                SIN los caracteres "e", "+", "-" que permite type="number"/"tel".
+                maxLength va sobre el texto FORMATEADO (12), no sobre los dígitos:
+                con maxLength={10} el usuario solo alcanzaba a escribir 8 dígitos.
+              */}
               <input
-                name="nombre"
-                value={formData.nombre}
-                onChange={manejarCambio}
-                className={cls('nombre')}
-                placeholder="Ej. Juan Pérez"
-                autoComplete="off"
+                ref={telRef}
+                name="telefono"
+                type="text"
+                inputMode="numeric"
+                autoComplete="tel"
+                maxLength={12}
+                value={formatearTelefono(formData.telefono)}
+                onChange={manejarTelefono}
+                className={`${cls('telefono')} pl-9 tabular-nums`}
+                placeholder="614 123 4567"
               />
-              <MsgError msg={errores.nombre} />
             </div>
+            <MsgError msg={errores.telefono} />
+            <p className="text-[10px] font-bold text-slate-400 mt-1 ml-1">
+              10 dígitos. Puedes pegar con lada o guiones, se limpia solo.
+            </p>
+          </div>
 
-            {/* Aviso + Alias */}
-            {nombreDuplicado && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
-                <p className="text-[11px] font-bold text-amber-700 flex items-start gap-1.5">
-                  <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-                  Ya tienes un cliente con este nombre. Agrega una referencia para
-                  distinguirlos.
-                </p>
-              </div>
-            )}
-
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">
-                Referencia / Alias {nombreDuplicado && <span className="text-amber-600">*</span>}
-              </label>
-              <div className="relative">
-                <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <input
-                  name="alias"
-                  value={formData.alias}
-                  onChange={manejarCambio}
-                  className={`${cls('alias')} pl-9`}
-                  placeholder="Ej. Taller Centro, vecino, Col. Obrera"
-                  autoComplete="off"
-                />
-              </div>
-              <MsgError msg={errores.alias} />
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase">Correo (opcional)</label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <input name="correo" type="email" maxLength={LIMITES.correo} value={formData.correo}
+                onChange={manejarCambio} className={`${cls('correo')} pl-9`} placeholder="correo@ejemplo.com" />
             </div>
+            <MsgError msg={errores.correo} />
+          </div>
 
-            {/* Teléfono */}
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">
-                Teléfono <span className="text-slate-300">(opcional)</span>
-              </label>
-              <div className="relative">
-                <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <input
-                  name="telefono"
-                  type="tel"
-                  inputMode="numeric"
-                  value={formatearTel(formData.telefono)}
-                  onChange={manejarCambio}
-                  className={`${cls('telefono')} pl-9`}
-                  placeholder="614 123 4567"
-                  autoComplete="off"
-                />
-              </div>
-              <MsgError msg={errores.telefono} />
-              {!errores.telefono && formData.telefono.length > 0 && formData.telefono.length < 10 && (
-                <p className="text-[11px] font-bold text-slate-400 mt-1 ml-1">
-                  {10 - formData.telefono.length} dígitos restantes
-                </p>
-              )}
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase">Dirección de servicio (opcional)</label>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-3 text-slate-400 w-4 h-4" />
+              <textarea name="direccion" maxLength={LIMITES.direccion} value={formData.direccion}
+                onChange={manejarCambio} rows="3"
+                className={`${cls('direccion')} pl-9 resize-none`} placeholder="Calle, número y colonia" />
             </div>
+            <Contador valor={formData.direccion} limite={LIMITES.direccion} />
+          </div>
 
-            {/* Correo */}
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">
-                Email <span className="text-slate-300">(opcional)</span>
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <input
-                  name="correo"
-                  type="email"
-                  value={formData.correo}
-                  onChange={manejarCambio}
-                  className={`${cls('correo')} pl-9`}
-                  placeholder="correo@ejemplo.com"
-                  autoComplete="off"
-                />
-              </div>
-              <MsgError msg={errores.correo} />
-            </div>
-
-            {/* Dirección */}
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">
-                Dirección de Servicio <span className="text-slate-300">(opcional)</span>
-              </label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-3 text-slate-400 w-4 h-4" />
-                <textarea
-                  name="direccion"
-                  value={formData.direccion}
-                  onChange={manejarCambio}
-                  rows="3"
-                  className={`${cls('direccion')} pl-9 resize-none`}
-                  placeholder="Calle y colonia"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                type="submit"
-                disabled={cargando}
-                className="flex-1 bg-slate-900 text-white p-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition shadow-lg disabled:opacity-50"
-              >
-                <Save size={18} />
-                {cargando ? 'Guardando...' : editandoId ? 'Guardar Cambios' : 'Registrar'}
+          <div className="flex gap-2">
+            <button type="submit" disabled={cargando}
+              className="flex-1 bg-primario text-white p-4 rounded-2xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-primario-dark transition">
+              <Save size={18} />
+              {cargando ? 'Guardando...' : editandoId ? 'Guardar cambios' : 'Registrar'}
+            </button>
+            {editandoId && (
+              <button type="button"
+                onClick={() => { setEditandoId(null); setFormData(VACIO); setErrores({}); }}
+                title="Cancelar edición"
+                className="bg-slate-100 text-slate-500 px-4 rounded-2xl hover:bg-slate-200 transition">
+                <X size={18} />
               </button>
-              {editandoId && (
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="bg-slate-100 text-slate-500 px-4 rounded-2xl font-bold hover:bg-slate-200 transition"
-                >
-                  <X size={18} />
-                </button>
-              )}
-            </div>
-          </form>
-        </div>
+            )}
+          </div>
+        </form>
 
-        {/* ══ LISTA ══ */}
+        {/* ══ Listado ══ */}
         <div className="lg:col-span-2 space-y-4">
           <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-            <input
-              type="text"
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input maxLength={LIMITES.busqueda} value={busqueda}
+              onChange={e => setBusqueda(limpiarTexto(e.target.value, LIMITES.busqueda))}
               placeholder="Buscar por nombre, alias o teléfono..."
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              className="w-full bg-white border border-slate-200 p-4 pl-12 rounded-2xl font-bold text-slate-700 outline-none focus:border-blue-500 shadow-sm"
-            />
+              className="w-full bg-white border border-slate-200 p-4 pl-12 pr-10 rounded-2xl font-bold text-slate-700 outline-none shadow-sm focus:border-primario transition" />
+            {busqueda && (
+              <button onClick={() => setBusqueda('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-600">
+                <X size={18} />
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {clientesFiltrados.length === 0 ? (
-              <div className="col-span-full p-8 text-center text-slate-400 font-medium bg-white rounded-3xl border border-dashed border-slate-200">
-                No se encontraron clientes.
+            {filtrados.length === 0 ? (
+              <div className="col-span-full p-10 text-center text-slate-400 bg-white rounded-3xl border-2 border-dashed border-slate-200">
+                <p className="font-bold text-slate-500">
+                  {clientes.length === 0 ? 'Aún no hay clientes' : 'Sin resultados'}
+                </p>
+                <p className="text-sm mt-1">
+                  {clientes.length === 0
+                    ? 'Registra el primero con el formulario de la izquierda.'
+                    : 'Prueba con otro nombre o teléfono.'}
+                </p>
               </div>
-            ) : (
-              clientesFiltrados.map((c) => {
-                const repetido = conteoNombres[normalizar(c.nombre)] > 1;
-                return (
-                  <div
-                    key={c.id}
-                    className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition group"
-                  >
-                    <div className="flex justify-between items-start mb-3 gap-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[10px] font-black text-slate-300 tracking-widest">
-                            {folioDe(c)}
-                          </span>
-                          <h4 className="font-black text-slate-800 text-lg leading-tight truncate">
-                            {c.nombre}
-                          </h4>
-                        </div>
-                        {c.alias && (
-                          <span
-                            className={`inline-block mt-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${repetido
-                                ? 'bg-amber-100 text-amber-700'
-                                : 'bg-slate-100 text-slate-500'
-                              }`}
-                          >
-                            {c.alias}
-                          </span>
-                        )}
-                        {repetido && !c.alias && (
-                          <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-red-100 text-red-600">
-                            <AlertTriangle size={10} /> Sin referencia
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex gap-1 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition">
-                        <button
-                          onClick={() => iniciarEdicion(c)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        {puede('eliminar_registros') && (
-                          <button onClick={() => eliminarCliente(c.id, c.nombre)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl">
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 text-sm text-slate-500 font-medium">
-                      {c.telefono && (
-                        <a
-                          href={`tel:+52${soloDigitos(c.telefono)}`}
-                          className="flex items-center gap-2 hover:text-blue-600 transition w-fit"
-                        >
-                          <Smartphone size={14} /> {formatearTel(c.telefono)}
-                        </a>
-                      )}
-                      {c.correo && (
-                        <a
-                          href={`mailto:${c.correo}`}
-                          className="flex items-center gap-2 hover:text-blue-600 transition truncate w-fit max-w-full"
-                        >
-                          <Mail size={14} className="shrink-0" />
-                          <span className="truncate">{c.correo}</span>
-                        </a>
-                      )}
-                      {c.direccion && (
-                        <p className="flex items-start gap-2 mt-2 pt-2 border-t border-slate-100">
-                          <MapPin size={14} className="mt-0.5 shrink-0" /> {c.direccion}
-                        </p>
-                      )}
-                    </div>
+            ) : filtrados.map(c => (
+              <div key={c.id} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+                <div className="flex justify-between items-start gap-2 mb-3">
+                  <div className="min-w-0">
+                    <h4 className="font-black text-slate-800 text-lg truncate">{c.nombre}</h4>
+                    {c.alias && (
+                      <span className="inline-block mt-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-slate-100 text-slate-500">
+                        {c.alias}
+                      </span>
+                    )}
                   </div>
-                );
-              })
-            )}
+                  <div className="flex gap-1 shrink-0">
+                    <button onClick={() => editar(c)} title="Editar"
+                      className="min-w-[40px] min-h-[40px] p-2 text-primario hover:bg-primario-suave rounded-xl transition">
+                      <Edit2 size={16} />
+                    </button>
+                    {puede('eliminar_registros') && (
+                      <button onClick={() => eliminar(c)} title="Eliminar"
+                        className="min-w-[40px] min-h-[40px] p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition">
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-sm text-slate-500 font-medium">
+                  {c.telefono && (
+                    <a href={`tel:+52${telefonoMX(c.telefono)}`} className="flex items-center gap-2 hover:text-primario">
+                      <Smartphone size={14} /> {formatearTelefono(c.telefono)}
+                    </a>
+                  )}
+                  {c.correo && (
+                    <a href={`mailto:${encodeURIComponent(c.correo)}`} className="flex items-center gap-2 truncate hover:text-primario">
+                      <Mail size={14} /> <span className="truncate">{c.correo}</span>
+                    </a>
+                  )}
+                  {c.direccion && (
+                    <p className="flex items-start gap-2 mt-2 pt-2 border-t border-slate-100">
+                      <MapPin size={14} className="mt-0.5 shrink-0" />
+                      <span className="line-clamp-2">{c.direccion}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

@@ -5,110 +5,144 @@ const NegocioContext = createContext(null);
 export const useNegocio = () => useContext(NegocioContext);
 
 export const PALETAS = {
-  blue: { nombre: 'Azul', p: '#2563eb', pd: '#1d4ed8', suave: '#eff6ff' },
+  blue:    { nombre: 'Azul',      p: '#2563eb', pd: '#1d4ed8', suave: '#eff6ff' },
   emerald: { nombre: 'Esmeralda', p: '#059669', pd: '#047857', suave: '#ecfdf5' },
-  violet: { nombre: 'Violeta', p: '#7c3aed', pd: '#6d28d9', suave: '#f5f3ff' },
-  rose: { nombre: 'Rojo', p: '#e11d48', pd: '#be123c', suave: '#fff1f2' },
-  amber: { nombre: 'Ámbar', p: '#d97706', pd: '#b45309', suave: '#fffbeb' },
-  cyan: { nombre: 'Cian', p: '#0891b2', pd: '#0e7490', suave: '#ecfeff' },
-  slate: { nombre: 'Grafito', p: '#334155', pd: '#1e293b', suave: '#f8fafc' },
+  violet:  { nombre: 'Violeta',   p: '#7c3aed', pd: '#6d28d9', suave: '#f5f3ff' },
+  rose:    { nombre: 'Rojo',      p: '#e11d48', pd: '#be123c', suave: '#fff1f2' },
+  amber:   { nombre: 'Ámbar',     p: '#d97706', pd: '#b45309', suave: '#fffbeb' },
+  cyan:    { nombre: 'Cian',      p: '#0891b2', pd: '#0e7490', suave: '#ecfeff' },
+  slate:   { nombre: 'Grafito',   p: '#334155', pd: '#1e293b', suave: '#f8fafc' },
 };
 
 export const FUENTES = {
-  sans: { nombre: 'Moderna', css: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif' },
-  serif: { nombre: 'Clásica', css: 'ui-serif, Georgia, "Times New Roman", serif' },
-  mono: { nombre: 'Técnica', css: 'ui-monospace, "Cascadia Code", Consolas, monospace' },
+  sans:    { nombre: 'Moderna', css: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif' },
+  serif:   { nombre: 'Clásica', css: 'ui-serif, Georgia, "Times New Roman", serif' },
+  mono:    { nombre: 'Técnica', css: 'ui-monospace, "Cascadia Code", Consolas, monospace' },
   rounded: { nombre: 'Redonda', css: '"Trebuchet MS", ui-rounded, system-ui, sans-serif' },
 };
 
 const TEMA_DEFAULT = { color: 'blue', sidebar: 'oscuro', fuente: 'sans', radio: 'suave' };
+
 const DASH_DEFAULT = {
-  widgets: ['ingresos', 'por_cobrar', 'egresos', 'utilidad', 'grafica_cartera', 'pendientes'],
+  widgets: ['ingresos', 'por_cobrar', 'egresos', 'utilidad', 'agenda_hoy', 'grafica_cartera', 'cobranza'],
   periodo_default: 'mes',
 };
-function ajustar(hex, pct) {
-  const n = parseInt(hex.replace('#', ''), 16);
+
+const HEX_RE = /^#[0-9a-f]{6}$/i;
+const SIDEBARS = ['oscuro', 'claro', 'color'];
+const RADIOS = ['recto', 'suave', 'redondo'];
+
+const ajustar = (hex, pct) => {
+  if (!HEX_RE.test(hex)) return hex;
+  const n = parseInt(hex.slice(1), 16);
   const cl = (v) => Math.max(0, Math.min(255, Math.round(v)));
   const r = cl(((n >> 16) & 255) * (1 + pct));
   const g = cl(((n >> 8) & 255) * (1 + pct));
   const b = cl((n & 255) * (1 + pct));
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
-}
-function mezclarBlanco(hex, pct) {
-  const n = parseInt(hex.replace('#', ''), 16);
+};
+
+const mezclarBlanco = (hex, pct) => {
+  if (!HEX_RE.test(hex)) return hex;
+  const n = parseInt(hex.slice(1), 16);
   const m = (v) => Math.round(v + (255 - v) * pct);
   const r = m((n >> 16) & 255), g = m((n >> 8) & 255), b = m(n & 255);
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
-}
+};
+
+/**
+ * Saneamos el tema antes de escribirlo en el DOM.
+ * Sin esto, un valor arbitrario guardado en `configuracion.tema` se inyecta
+ * tal cual en una CSS custom property: es un vector de CSS injection.
+ */
+const sanearTema = (t = {}) => ({
+  color: t.color === 'custom' || PALETAS[t.color] ? t.color : 'blue',
+  colorHex: HEX_RE.test(t.colorHex || '') ? t.colorHex : '#2563eb',
+  sidebar: SIDEBARS.includes(t.sidebar) ? t.sidebar : 'oscuro',
+  fuente: FUENTES[t.fuente] ? t.fuente : 'sans',
+  radio: RADIOS.includes(t.radio) ? t.radio : 'suave',
+});
 
 export function NegocioProvider({ session, children }) {
   const [miembro, setMiembro] = useState(null);
   const [esSuperAdmin, setEsSuperAdmin] = useState(false);
-  const [tema, setTema] = useState(TEMA_DEFAULT);
+  const [tema, setTemaRaw] = useState(TEMA_DEFAULT);
   const [dashboardCfg, setDashboardCfg] = useState(DASH_DEFAULT);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
 
-  /* ---- 1. Miembro + super admin ---- */
-  useEffect(() => {
-    if (!session?.user?.id) return;
-    let activo = true;
+  const setTema = useCallback((t) => setTemaRaw(sanearTema(typeof t === 'function' ? t(tema) : t)), [tema]);
 
-    (async () => {
-      const { data: filas, error: err } = await supabase
-        .from('miembros')
+  /* ---- 1. Miembro + super admin ---- */
+  const cargarMiembro = useCallback(async () => {
+    if (!session?.user?.id) return;
+    setCargando(true);
+
+    const [{ data: filas, error: err }, { data: sa }] = await Promise.all([
+      supabase.from('miembros')
         .select('*, negocios(nombre)')
         .eq('user_id', session.user.id)
         .order('created_at')
-        .limit(1);
+        .limit(1),
+      supabase.rpc('es_super_admin'),
+    ]);
 
-      const { data: sa } = await supabase.rpc('es_super_admin');
-
-      if (!activo) return;
-      setEsSuperAdmin(sa === true);
-      if (err) setError(err.message);
-      else if (!filas?.length) setError('SIN_NEGOCIO');
-      else { setMiembro(filas[0]); setError(null); }
-      setCargando(false);
-    })();
-
-    return () => { activo = false; };
+    setEsSuperAdmin(sa === true);
+    if (err) setError(err.message);
+    else if (!filas?.length) { setMiembro(null); setError('SIN_NEGOCIO'); }
+    else { setMiembro(filas[0]); setError(null); }
+    setCargando(false);
   }, [session?.user?.id]);
+
+  useEffect(() => { cargarMiembro(); }, [cargarMiembro]);
 
   const negocioId = miembro?.negocio_id ?? null;
 
   /* ---- 2. Tema y dashboard del negocio ---- */
   const recargarConfig = useCallback(async () => {
     if (!negocioId) return;
-    const { data } = await supabase
-      .from('configuracion')
-      .select('tema, dashboard')
-      .eq('negocio_id', negocioId)
-      .maybeSingle();
+    const { data } = await supabase.from('configuracion')
+      .select('tema, dashboard').eq('negocio_id', negocioId).maybeSingle();
 
-    setTema({ ...TEMA_DEFAULT, ...(data?.tema || {}) });
-    setDashboardCfg({ ...DASH_DEFAULT, ...(data?.dashboard || {}) });
+    setTemaRaw(sanearTema({ ...TEMA_DEFAULT, ...(data?.tema || {}) }));
+    setDashboardCfg({
+      ...DASH_DEFAULT,
+      ...(data?.dashboard || {}),
+      widgets: Array.isArray(data?.dashboard?.widgets) ? data.dashboard.widgets : DASH_DEFAULT.widgets,
+    });
   }, [negocioId]);
 
   useEffect(() => { recargarConfig(); }, [recargarConfig]);
 
   /* ---- 3. Aplicar el tema al DOM ---- */
   useEffect(() => {
-    const custom = tema.color === 'custom' && /^#[0-9a-f]{6}$/i.test(tema.colorHex || '');
-    const base = custom ? tema.colorHex : (PALETAS[tema.color] || PALETAS.blue).p;
-    const dark = custom ? ajustar(base, -0.18) : (PALETAS[tema.color] || PALETAS.blue).pd;
-    const suave = custom ? mezclarBlanco(base, 0.92) : (PALETAS[tema.color] || PALETAS.blue).suave;
-    const f = FUENTES[tema.fuente] || FUENTES.sans;
+    const t = sanearTema(tema);
+    const custom = t.color === 'custom';
+    const paleta = PALETAS[t.color] || PALETAS.blue;
+    const base  = custom ? t.colorHex : paleta.p;
+    const dark  = custom ? ajustar(base, -0.18) : paleta.pd;
+    const suave = custom ? mezclarBlanco(base, 0.92) : paleta.suave;
+    const f = FUENTES[t.fuente] || FUENTES.sans;
 
     const root = document.documentElement;
     root.style.setProperty('--color-primario', base);
     root.style.setProperty('--color-primario-dark', dark);
     root.style.setProperty('--color-primario-suave', suave);
     root.style.setProperty('--fuente-app', f.css);
-    root.setAttribute('data-radio', tema.radio || 'suave');
+    root.setAttribute('data-radio', t.radio);
   }, [tema]);
+
   const esDueno = miembro?.rol === 'dueno';
-  const puede = (p) => esDueno || miembro?.permisos?.[p] === true;
+
+  /**
+   * `puede` es solo para la interfaz: esconde botones.
+   * La autorización real vive en las políticas RLS de Postgres y en la
+   * Edge Function — nunca confíes solo en este flag.
+   */
+  const puede = useCallback(
+    (p) => esDueno || miembro?.permisos?.[p] === true,
+    [esDueno, miembro],
+  );
 
   return (
     <NegocioContext.Provider value={{
@@ -121,10 +155,11 @@ export function NegocioProvider({ session, children }) {
       error,
       esSuperAdmin,
       tema,
-      setTema,            // para previsualizar en vivo
+      setTema,
       dashboardCfg,
       setDashboardCfg,
       recargarConfig,
+      recargarMiembro: cargarMiembro,
     }}>
       {children}
     </NegocioContext.Provider>

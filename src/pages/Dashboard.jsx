@@ -13,6 +13,7 @@ import { useNegocio } from '../context/NegocioContext.jsx';
 import { CATALOGO_WIDGETS } from '../components/DashboardConfig.jsx';
 import FiltroPeriodo from '../components/FiltroPeriodo.jsx';
 import { rangoFechas, enRango, formatoMX } from '../utils/fecha.js';
+import { WidgetAgendaHoy, WidgetAgendaProximos, KpiAgenda } from '../components/WidgetAgenda.jsx';
 
 const money = (n) => `$${(Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const num = (v) => Number(v) || 0;
@@ -176,6 +177,9 @@ export default function Dashboard({ session }) {
       label="Tasa de cierre" valor={`${d.cierre.toFixed(0)}%`} />,
     clientes_activos: () => <Kpi icon={<Users size={24} />} bg="bg-indigo-100" text="text-indigo-600"
       label="Clientes" valor={clientes} />,
+      agenda_kpi:      () => <KpiAgenda />,
+    agenda_hoy:      () => <WidgetAgendaHoy />,
+    agenda_proximos: () => <WidgetAgendaProximos />,
 
     grafica_cartera: () => (
       <Panel titulo="Estado de cartera">

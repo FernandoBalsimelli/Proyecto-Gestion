@@ -3,6 +3,7 @@ import { useNegocio } from '../context/NegocioContext.jsx';
 import { LayoutDashboard, ChevronUp, ChevronDown, Check } from 'lucide-react';
 
 export const CATALOGO_WIDGETS = {
+  // ── Indicadores ──
   ingresos:         { label: 'Dinero recibido',      tipo: 'kpi' },
   por_cobrar:       { label: 'Por cobrar (saldo)',   tipo: 'kpi' },
   egresos:          { label: 'Total egresos',        tipo: 'kpi', permiso: 'ver_finanzas' },
@@ -11,6 +12,11 @@ export const CATALOGO_WIDGETS = {
   ticket_promedio:  { label: 'Ticket promedio',      tipo: 'kpi' },
   tasa_cierre:      { label: 'Tasa de cierre (%)',   tipo: 'kpi' },
   clientes_activos: { label: 'Clientes registrados', tipo: 'kpi' },
+  agenda_kpi:       { label: 'Trabajos abiertos',    tipo: 'kpi' },
+
+  // ── Bloques ──
+  agenda_hoy:       { label: 'Agenda de hoy',        tipo: 'bloque' },
+  agenda_proximos:  { label: 'Próximos 7 días',      tipo: 'bloque' },
   grafica_cartera:  { label: 'Gráfica de cartera',   tipo: 'bloque' },
   tendencia:        { label: 'Tendencia mensual',    tipo: 'bloque' },
   cobranza:         { label: 'Cobranza pendiente',   tipo: 'bloque' },
@@ -22,7 +28,9 @@ export const CATALOGO_WIDGETS = {
 
 export default function DashboardConfig() {
   const { dashboardCfg, setDashboardCfg, puede } = useNegocio();
-  const activos = dashboardCfg.widgets || [];
+
+  // Descartamos ids que ya no existen en el catálogo (config vieja guardada en BD).
+  const activos = (dashboardCfg.widgets || []).filter(id => CATALOGO_WIDGETS[id]);
 
   const toggle = (id) => setDashboardCfg({
     ...dashboardCfg,
@@ -37,12 +45,13 @@ export default function DashboardConfig() {
     setDashboardCfg({ ...dashboardCfg, widgets: n });
   };
 
-  const disponibles = Object.entries(CATALOGO_WIDGETS).filter(([, w]) => !w.permiso || puede(w.permiso));
+  const disponibles = Object.entries(CATALOGO_WIDGETS)
+    .filter(([, w]) => !w.permiso || puede(w.permiso));
 
   return (
     <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-6">
       <h3 className="font-bold text-slate-700 flex items-center gap-2 border-b border-slate-100 pb-3">
-        <LayoutDashboard size={18} /> Panel de Control
+        <LayoutDashboard size={18} /> Panel de control
       </h3>
 
       <div>
@@ -57,7 +66,6 @@ export default function DashboardConfig() {
           <div className="space-y-2">
             {activos.map((id, i) => {
               const w = CATALOGO_WIDGETS[id];
-              if (!w) return null;
               return (
                 <div key={id} className="flex items-center gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-100">
                   <span className="text-[10px] font-black text-slate-300 w-5">{i + 1}</span>
@@ -65,9 +73,9 @@ export default function DashboardConfig() {
                   <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-slate-200 text-slate-500 shrink-0">
                     {w.tipo}
                   </span>
-                  <button onClick={() => mover(i, -1)} disabled={i === 0}
+                  <button onClick={() => mover(i, -1)} disabled={i === 0} aria-label="Subir"
                     className="p-1.5 text-slate-400 hover:text-primario disabled:opacity-20"><ChevronUp size={16} /></button>
-                  <button onClick={() => mover(i, 1)} disabled={i === activos.length - 1}
+                  <button onClick={() => mover(i, 1)} disabled={i === activos.length - 1} aria-label="Bajar"
                     className="p-1.5 text-slate-400 hover:text-primario disabled:opacity-20"><ChevronDown size={16} /></button>
                 </div>
               );

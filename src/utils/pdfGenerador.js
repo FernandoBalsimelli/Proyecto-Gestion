@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { LIMITES } from './seguridad.js';
 
 export const PLANTILLAS = {
   clasico: {
@@ -29,15 +30,35 @@ export const PLANTILLAS = {
   },
 };
 
+const HEX_RE = /^#[0-9a-f]{6}$/i;
+
 export const hexToRgb = (hex) => {
-  const n = parseInt(String(hex || '#16415e').replace('#', ''), 16);
+  const limpio = HEX_RE.test(String(hex || '')) ? hex : '#16415e';
+  const n = parseInt(limpio.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 };
 
 const money = (n) => `$${(Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
 
 /**
- * Genera el PDF. Devuelve el objeto jsPDF.
+ * Recorta texto para el PDF. Sin esto, una descripción de 5 000 caracteres
+ * genera 40 páginas basura y jsPDF puede colgar el navegador.
+ */
+const corte = (v, max) => {
+  const s = String(v ?? '').replace(/[\u0000-\u001F\u007F]/g, ' ').trim();
+  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+};
+
+/** Nombre de archivo sin caracteres que rompan Windows/macOS. */
+const nombreArchivoSeguro = (s) =>
+  String(s || 'documento')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9_\- ]/g, '')
+    .trim().replace(/\s+/g, '_')
+    .slice(0, 60) || 'documento';
+
+/**
+ * Genera el PDF.
  * @param {'save'|'bloburl'} salida
  */
 export function generarDocumentoPDF({
@@ -53,7 +74,12 @@ export function generarDocumentoPDF({
 
   const doc = new jsPDF();
   doc.setFont(FUENTE, 'normal');
-  const titulo = (config.tituloDocumento || 'PRESUPUESTO').toUpperCase();
+
+  const titulo = corte(config.tituloDocumento || 'PRESUPUESTO', LIMITES.tituloDocumento).toUpperCase();
+
+  // Tope duro de renglones: 60. Más allá el documento deja de ser legible.
+  const filas = (Array.isArray(conceptos) ? conceptos : []).slice(0, LIMITES.maxConceptos);
+  const recortados = (conceptos?.length || 0) - filas.length;
 
   /* ── Adornos ── */
   if (P.bandaSuperior) { doc.setFillColor(...ACENTO); doc.rect(0, 0, 210, 8, 'F'); }
@@ -64,10 +90,11 @@ export function generarDocumentoPDF({
 
   /* ── Encabezado ── */
   if (pdfCfg.mostrar_logo !== false && config.logo) {
-    try { doc.addImage(config.logo, 'PNG', izq, top + 12, 30, 30, '', 'FAST'); } catch { /* logo inválido */ }
+    try { doc.addImage(config.logo, 'PNG', izq, top + 12, 30, 30, '', 'FAST'); }
+    catch { /* logo corrupto: seguimos sin él */ }
   } else {
     doc.setFontSize(18).setTextColor(...ACENTO).setFont(FUENTE, 'bold');
-    doc.text(config.nombre || 'MI EMPRESA', izq, top + 25);
+    doc.text(corte(config.nombre || 'MI EMPRESA', LIMITES.nombreNegocio), izq, top + 25);
   }
 
   if (P.tituloEnCaja) {
@@ -86,7 +113,7 @@ export function generarDocumentoPDF({
 
   if (config.especialidad) {
     doc.setFontSize(9).setTextColor(150, 150, 150).setFont(FUENTE, 'normal');
-    doc.text(String(config.especialidad).toUpperCase(), 196, top + 34, { align: 'right' });
+    doc.text(corte(config.especialidad, LIMITES.especialidad).toUpperCase(), 196, top + 34, { align: 'right' });
   }
 
   /* ── Cliente / folio ── */
@@ -94,26 +121,26 @@ export function generarDocumentoPDF({
   doc.setFontSize(11).setTextColor(...ACENTO).setFont(FUENTE, 'bold');
   doc.text('INFORMACIÓN DEL CLIENTE', izq, infoY);
   doc.setFontSize(9).setTextColor(...TEXTO).setFont(FUENTE, 'normal');
-  doc.text(`Nombre:  ${cliente || 'Público en General'}`, izq, infoY + 7);
+  doc.text(`Nombre:  ${corte(cliente || 'Público en General', LIMITES.nombre)}`, izq, infoY + 7);
 
   doc.setFontSize(9).setFont(FUENTE, 'bold');
   doc.text(`${titulo}: N° ${folio ? String(folio).padStart(5, '0') : 'BORRADOR'}`, 196, infoY, { align: 'right' });
-  doc.text(`FECHA: ${fecha}`, 196, infoY + 5, { align: 'right' });
-  doc.text(`PAGO: ${String(metodoPago || '').toUpperCase()}`, 196, infoY + 10, { align: 'right' });
+  doc.text(`FECHA: ${corte(fecha, 20)}`, 196, infoY + 5, { align: 'right' });
+  doc.text(`PAGO: ${corte(metodoPago, 20).toUpperCase()}`, 196, infoY + 10, { align: 'right' });
 
   /* ── Tabla ── */
   autoTable(doc, {
     startY: infoY + 23,
     margin: { left: izq, right: 14, bottom: 95 },
     head: [['DESCRIPCIÓN', 'CANT.', 'PRECIO', 'SUBTOTAL']],
-    body: conceptos.map(c => [
-      c.descripcion,
-      c.cantidad,
+    body: filas.map(c => [
+      corte(c.descripcion, LIMITES.descripcionConcepto),
+      Math.min(LIMITES.maxCantidad, Number(c.cantidad) || 0),
       money(c.precio),
       money((Number(c.cantidad) || 0) * (Number(c.precio) || 0)),
     ]),
     theme: pdfCfg.tabla || P.tabla,
-    styles: { font: FUENTE, fontSize: 9, cellPadding: 4, textColor: TEXTO },
+    styles: { font: FUENTE, fontSize: 9, cellPadding: 4, textColor: TEXTO, overflow: 'linebreak' },
     headStyles: P.headerFill
       ? { fillColor: ACENTO, textColor: [255, 255, 255], fontStyle: 'bold' }
       : { fillColor: [255, 255, 255], textColor: ACENTO, fontStyle: 'bold',
@@ -129,13 +156,22 @@ export function generarDocumentoPDF({
       doc.setFontSize(8).setTextColor(...TEXTO).setFont(FUENTE, 'normal');
       doc.setDrawColor(220, 220, 220).setLineWidth(0.3);
       doc.line(izq, 280, 196, 280);
-      const pie = [config.telefono, config.sitioWeb, config.direccion].filter(Boolean).join('   |   ');
+      const pie = corte(
+        [config.telefono, config.sitioWeb, config.direccion].filter(Boolean).join('   |   '),
+        150
+      );
       doc.text(pie, 105, 287, { align: 'center' });
       if (pdfCfg.mostrar_pagina !== false) {
         doc.text(`Página ${data.pageNumber}`, 196, 287, { align: 'right' });
       }
     },
   });
+
+  if (recortados > 0) {
+    doc.setFontSize(8).setTextColor(150, 150, 150).setFont(FUENTE, 'italic');
+    doc.text(`(+${recortados} concepto(s) no mostrados: el documento admite ${LIMITES.maxConceptos} renglones)`,
+      izq, doc.lastAutoTable.finalY + 5);
+  }
 
   /* ── Totales ── */
   const baseY = 210;
@@ -161,11 +197,14 @@ export function generarDocumentoPDF({
     doc.setTextColor(...ACENTO).setFontSize(11).setFont(FUENTE, 'bold');
     doc.text('INFORMACIÓN DE PAGO', izq, baseY);
     doc.setFontSize(9).setTextColor(...TEXTO);
-    [['Banco:', config.banco], ['Nombre:', config.cuentaNombre], ['Cuenta:', config.cuentaNumero]]
-      .forEach(([et, val], i) => {
-        doc.setFont(FUENTE, 'bold');   doc.text(et, izq, baseY + 7 + i * 6);
-        doc.setFont(FUENTE, 'normal'); doc.text(String(val || '—'), izq + 21, baseY + 7 + i * 6);
-      });
+    [
+      ['Banco:',  corte(config.banco, LIMITES.banco)],
+      ['Nombre:', corte(config.cuentaNombre, LIMITES.cuentaNombre)],
+      ['Cuenta:', corte(config.cuentaNumero, LIMITES.cuentaNumero)],
+    ].forEach(([et, val], i) => {
+      doc.setFont(FUENTE, 'bold');   doc.text(et, izq, baseY + 7 + i * 6);
+      doc.setFont(FUENTE, 'normal'); doc.text(val || '—', izq + 21, baseY + 7 + i * 6);
+    });
   }
 
   /* ── Términos ── */
@@ -174,7 +213,9 @@ export function generarDocumentoPDF({
     doc.setTextColor(...ACENTO).setFontSize(10).setFont(FUENTE, 'bold');
     doc.text('TÉRMINOS Y CONDICIONES', izq, tY);
     doc.setFontSize(8).setTextColor(100, 100, 100).setFont(FUENTE, 'normal');
-    doc.text(doc.splitTextToSize(config.condiciones, 100), izq, tY + 6);
+    // Máximo 6 líneas: lo que cabe sin invadir la firma ni el pie.
+    const lineas = doc.splitTextToSize(corte(config.condiciones, LIMITES.condiciones), 100).slice(0, 6);
+    doc.text(lineas, izq, tY + 6);
   }
 
   /* ── Firma ── */
@@ -185,11 +226,11 @@ export function generarDocumentoPDF({
       doc.line(135, 268, 190, 268);
       doc.setFontSize(8).setTextColor(120, 120, 120).setFont(FUENTE, 'normal');
       doc.text('Firma autorizada', 162, 272, { align: 'center' });
-    } catch { /* firma inválida */ }
+    } catch { /* firma corrupta */ }
   }
 
   if (salida === 'bloburl') return doc.output('bloburl');
-  doc.save(`${titulo}_${cliente || 'General'}_${String(fecha).replace(/\//g, '-')}.pdf`);
+  doc.save(`${nombreArchivoSeguro(titulo)}_${nombreArchivoSeguro(cliente || 'General')}_${nombreArchivoSeguro(fecha)}.pdf`);
   return doc;
 }
 
@@ -200,11 +241,11 @@ export const DEMO = {
   metodoPago: 'Transferencia',
   folio: 1234,
   conceptos: [
-    { cantidad: 1, descripcion: 'Instalación de centro de carga trifásico 100A con pastillas termomagnéticas', precio: 8500 },
+    { cantidad: 1,  descripcion: 'Instalación de centro de carga trifásico 100A con pastillas termomagnéticas', precio: 8500 },
     { cantidad: 12, descripcion: 'Contacto dúplex polarizado con tierra física', precio: 185 },
     { cantidad: 45, descripcion: 'Metro de cable THW calibre 12 AWG', precio: 32 },
-    { cantidad: 3, descripcion: 'Luminaria LED empotrable 18W luz neutra', precio: 420 },
-    { cantidad: 1, descripcion: 'Mano de obra y puesta en marcha del sistema', precio: 4200 },
+    { cantidad: 3,  descripcion: 'Luminaria LED empotrable 18W luz neutra', precio: 420 },
+    { cantidad: 1,  descripcion: 'Mano de obra y puesta en marcha del sistema', precio: 4200 },
   ],
   incluirIva: true,
 };

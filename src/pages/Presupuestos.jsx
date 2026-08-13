@@ -10,6 +10,7 @@ import { generarDocumentoPDF } from '../utils/pdfGenerador.js';
 import { hoyLocal, formatoMX } from '../utils/fecha.js';
 import { useUI } from '../components/ui/UI.jsx';
 import ModalCatalogo from '../components/ModalCatalogo.jsx';
+import { LIMITES, limpiarTexto, textoParaGuardar, entradaNumerica, bloquearTeclasNumericas, numeroSeguro } from '../utils/seguridad.js';
 
 const money = (n) => `$${(Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
 
@@ -118,15 +119,20 @@ export default function Presupuestos({ session }) {
 
   /* ─────────── Helpers ─────────── */
   const seleccionarTodo = (e) => e.target.select();
-  const agregarFila = () => setConceptos(c => [...c, { ...FILA_VACIA }]);
-  const duplicarFila = (i) =>
-    setConceptos(c => [...c.slice(0, i + 1), { ...c[i] }, ...c.slice(i + 1)]);
-    const agregarDelCatalogo = (item) => {
-    setConceptos(c => {
-      const vacia = c.length === 1 && !c[0].descripcion.trim() && !c[0].precio;
-      return vacia ? [item] : [...c, item];
-    });
-  };
+  const agregarFila = () => setConceptos(c => {
+    if (c.length >= LIMITES.maxConceptos) {
+      toast.warn(`Máximo ${LIMITES.maxConceptos} conceptos por documento.`);
+      return c;
+    }
+    return [...c, { ...FILA_VACIA }];
+  });
+  const duplicarFila = (i) => setConceptos(c => {
+    if (c.length >= LIMITES.maxConceptos) {
+      toast.warn(`Máximo ${LIMITES.maxConceptos} conceptos por documento.`);
+      return c;
+    }
+    return [...c.slice(0, i + 1), { ...c[i] }, ...c.slice(i + 1)];
+  });
   const guardarEnCatalogo = async (c) => {
     if (!c.descripcion.trim()) return toast.error('Escribe una descripción primero.');
     const { error } = await supabase.from('servicios').insert([{
@@ -154,12 +160,12 @@ export default function Presupuestos({ session }) {
   const conceptosLimpios = () =>
     conceptos
       .filter(c => c.descripcion.trim() !== '' && Number(c.cantidad) > 0)
+      .slice(0, LIMITES.maxConceptos)
       .map(c => ({
-        cantidad: Number(c.cantidad) || 0,
-        descripcion: c.descripcion.trim(),
-        precio: Number(c.precio) || 0,
+        cantidad: numeroSeguro(c.cantidad, { max: LIMITES.maxCantidad, decimales: 2 }),
+        descripcion: textoParaGuardar(c.descripcion, LIMITES.descripcionConcepto),
+        precio: numeroSeguro(c.precio, { max: LIMITES.maxMonto }),
       }));
-
   /* ─────────── PDF ─────────── */
   const generarPDF = () => {
     const limpios = conceptosLimpios();
@@ -181,10 +187,14 @@ export default function Presupuestos({ session }) {
     if (!limpios.length) return toast.error('Agrega al menos un concepto con descripción y cantidad.');
     if (totalNeto <= 0) return toast.error('El total está en ceros. Agrega precios válidos.');
     if (!negocioId) return toast.error('Cargando negocio, espera un momento.');
+    if (cargando) return;
 
     setCargando(true);
     try {
-      const descripcion = limpios.map(c => `${c.cantidad}x ${c.descripcion} ($${c.precio})`).join(' | ');
+      const descripcion = limpios
+        .map(c => `${c.cantidad}x ${c.descripcion} ($${c.precio})`)
+        .join(' | ')
+        .slice(0, 4000);
 
       const datos = {
         cliente: clienteNombre || 'Público en General',
@@ -313,11 +323,11 @@ export default function Presupuestos({ session }) {
               <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Estado</label>
               <div className="relative mt-1">
                 <CheckCircle className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 z-10 ${estado === 'pagado' ? 'text-emerald-500'
-                    : estado === 'cancelado' ? 'text-slate-400' : 'text-amber-500'}`} />
+                  : estado === 'cancelado' ? 'text-slate-400' : 'text-amber-500'}`} />
                 <select value={estado} onChange={(e) => setEstado(e.target.value)}
                   className={`w-full p-3 pl-9 rounded-xl outline-none border font-bold transition ${estado === 'pagado' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                      : estado === 'cancelado' ? 'bg-slate-100 border-slate-300 text-slate-500'
-                        : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+                    : estado === 'cancelado' ? 'bg-slate-100 border-slate-300 text-slate-500'
+                      : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
                   <option value="pendiente">Pendiente (por cobrar)</option>
                   <option value="pagado">Pagado (completado)</option>
                   <option value="cancelado">Cancelado (archivado)</option>
@@ -359,7 +369,7 @@ export default function Presupuestos({ session }) {
 
         {/* ══ CONCEPTOS ══ */}
         <div className="xl:col-span-2 space-y-3">
-                    <div className="flex justify-between items-center gap-2 flex-wrap">
+          <div className="flex justify-between items-center gap-2 flex-wrap">
             <h3 className="font-bold text-slate-700">Conceptos del servicio</h3>
             <div className="flex gap-2">
               <button onClick={() => setCatalogoAbierto(true)}
@@ -387,7 +397,7 @@ export default function Presupuestos({ session }) {
                     className="flex-1 p-3 bg-slate-50 rounded-xl outline-none border border-slate-100 font-medium resize-none leading-snug focus:bg-white focus:ring-2 focus:ring-primario/10 transition"
                   />
                   <div className="flex flex-col gap-1 shrink-0">
-                                        <button onClick={() => guardarEnCatalogo(c)} title="Guardar en catálogo"
+                    <button onClick={() => guardarEnCatalogo(c)} title="Guardar en catálogo"
                       className="p-2 text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition">
                       <BookmarkPlus size={16} />
                     </button>
@@ -405,15 +415,21 @@ export default function Presupuestos({ session }) {
                 <div className="flex items-end gap-2 pl-8">
                   <div className="w-20 shrink-0">
                     <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Cant.</label>
-                    <input type="number" inputMode="decimal" min="0" step="any" value={c.cantidad}
-                      onChange={(e) => actualizarFila(i, 'cantidad', e.target.value)} onFocus={seleccionarTodo}
-                      className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold text-center outline-none focus:bg-white" />
+                    {/* Cantidad */}
+                    <input type="text" inputMode="decimal" value={c.cantidad}
+                      onChange={(e) => actualizarFila(i, 'cantidad', entradaNumerica(e.target.value, { maxEnteros: 6 }))}
+                      onKeyDown={bloquearTeclasNumericas}
+                      onFocus={seleccionarTodo}
+                      className="…" />
                   </div>
                   <div className="flex-1">
                     <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Precio unitario</label>
-                    <input type="number" inputMode="decimal" min="0" step="any" value={c.precio} placeholder="0.00"
-                      onChange={(e) => actualizarFila(i, 'precio', e.target.value)} onFocus={seleccionarTodo}
-                      className="w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold text-right outline-none focus:bg-white" />
+                    {/* Precio */}
+                    <input type="text" inputMode="decimal" value={c.precio} placeholder="0.00"
+                      onChange={(e) => actualizarFila(i, 'precio', entradaNumerica(e.target.value, { maxEnteros: 8 }))}
+                      onKeyDown={bloquearTeclasNumericas}
+                      onFocus={seleccionarTodo}
+                      className="…" />
                   </div>
                   <div className="flex-1 text-right">
                     <label className="text-[9px] font-black text-slate-400 uppercase">Importe</label>
@@ -455,7 +471,7 @@ export default function Presupuestos({ session }) {
           </button>
         </div>
       </div>
-            {catalogoAbierto && (
+      {catalogoAbierto && (
         <ModalCatalogo onCerrar={() => setCatalogoAbierto(false)} onAgregar={agregarDelCatalogo} />
       )}
     </div>

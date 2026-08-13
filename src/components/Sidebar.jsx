@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { supabase } from '../supabaseClient.js';
 import { useNegocio } from '../context/NegocioContext.jsx';
 import { useUI } from './ui/UI.jsx';
+import { fechaLocalISO } from '../utils/seguridad.js';
 import {
   LayoutDashboard, FileText, History, Wallet, Users, Settings,
-  Shield, Zap, Menu, X, LogOut, Building2, UserCircle,
+  Shield, Zap, Menu, X, LogOut, Building2, UserCircle, Briefcase,
+  CalendarDays,
 } from 'lucide-react';
 
 const ESTILOS = {
@@ -40,28 +42,50 @@ export default function Sidebar({ session }) {
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [logo, setLogo] = useState(null);
   const [nombre, setNombre] = useState('SISTEMA ERP');
+  const [pendientesHoy, setPendientesHoy] = useState(0);
+
+  /* ── Marca del negocio ── */
+  const cargarMarca = useCallback(async () => {
+    if (!negocioId) return;
+    const { data } = await supabase.from('configuracion')
+      .select('nombre, logo').eq('negocio_id', negocioId).maybeSingle();
+    setNombre(data?.nombre || nombreNegocio || 'SISTEMA ERP');
+    setLogo(data?.logo || null);
+  }, [negocioId, nombreNegocio]);
+
+  /* ── Badge de agenda: trabajos de hoy o atrasados ── */
+  const cargarAgenda = useCallback(async () => {
+    if (!negocioId) return;
+    const { count } = await supabase.from('agenda')
+      .select('id', { count: 'exact', head: true })
+      .eq('negocio_id', negocioId)
+      .in('estado', ['pendiente', 'en_proceso'])
+      .lte('fecha', fechaLocalISO());
+    setPendientesHoy(count || 0);
+  }, [negocioId]);
 
   useEffect(() => {
     if (!negocioId) return;
-    const cargar = async () => {
-      const { data } = await supabase.from('configuracion')
-        .select('nombre, logo').eq('negocio_id', negocioId).maybeSingle();
-      setNombre(data?.nombre || nombreNegocio || 'SISTEMA ERP');
-      setLogo(data?.logo || null);
-    };
-    cargar();
+    cargarMarca();
+    cargarAgenda();
+
+    let t;
+    const debounced = (fn) => () => { clearTimeout(t); t = setTimeout(fn, 400); };
 
     const canal = supabase.channel(`sidebar-${negocioId}`)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'configuracion',
-        filter: `negocio_id=eq.${negocioId}`,
-      }, cargar).subscribe();
-    return () => { supabase.removeChannel(canal); };
-  }, [negocioId, nombreNegocio]);
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'configuracion', filter: `negocio_id=eq.${negocioId}` },
+        debounced(cargarMarca))
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'agenda', filter: `negocio_id=eq.${negocioId}` },
+        debounced(cargarAgenda))
+      .subscribe();
+
+    return () => { clearTimeout(t); supabase.removeChannel(canal); };
+  }, [negocioId, cargarMarca, cargarAgenda]);
 
   useEffect(() => { setMenuAbierto(false); }, [location.pathname]);
 
-  // Bloquea el scroll del body con el menú abierto en móvil
   useEffect(() => {
     document.body.style.overflow = menuAbierto ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
@@ -78,20 +102,22 @@ export default function Sidebar({ session }) {
 
   const menuItems = [
     { icon: <LayoutDashboard size={20} />, label: 'Dashboard',        path: '/' },
-    { icon: <FileText size={20} />,        label: 'Nueva Cotización', path: '/presupuestos' },
+    { icon: <CalendarDays size={20} />,    label: 'Agenda',           path: '/agenda', badge: pendientesHoy },
+    { icon: <FileText size={20} />,        label: 'Nueva cotización', path: '/presupuestos' },
     { icon: <History size={20} />,         label: 'Historial',        path: '/historial' },
-    ...(puede('ver_finanzas')         ? [{ icon: <Wallet size={20} />,   label: 'Finanzas',      path: '/finanzas' }] : []),
+    ...(puede('ver_finanzas')         ? [{ icon: <Wallet size={20} />,    label: 'Finanzas',       path: '/finanzas' }] : []),
     { icon: <Users size={20} />,           label: 'Clientes',         path: '/clientes' },
-    ...(puede('editar_configuracion') ? [{ icon: <Settings size={20} />, label: 'Configuración', path: '/configuracion' }] : []),
-    ...(puede('gestionar_equipo')     ? [{ icon: <Shield size={20} />,   label: 'Equipo',        path: '/equipo' }] : []),
-    ...(esSuperAdmin                  ? [{ icon: <Building2 size={20} />,label: 'Administración',path: '/administracion' }] : []),
-    { icon: <UserCircle size={20} />,      label: 'Mi Cuenta',        path: '/mi-cuenta' },
+    ...(puede('editar_configuracion') ? [{ icon: <Settings size={20} />,  label: 'Configuración',  path: '/configuracion' }] : []),
+    ...(puede('gestionar_equipo')     ? [{ icon: <Shield size={20} />,    label: 'Equipo',         path: '/equipo' }] : []),
+    ...(puede('gestionar_equipo')     ? [{ icon: <Briefcase size={20} />, label: 'Nómina',         path: '/nomina' }] : []),
+    ...(esSuperAdmin                  ? [{ icon: <Building2 size={20} />, label: 'Administración', path: '/administracion' }] : []),
+    { icon: <UserCircle size={20} />,      label: 'Mi cuenta',        path: '/mi-cuenta' },
   ];
 
   const Marca = ({ chico }) => (
     <div className="flex items-center gap-3 overflow-hidden min-w-0">
       {logo ? (
-        <img src={logo} alt="Logo"
+        <img src={logo} alt=""
           className={`${chico ? 'h-8 w-8' : 'h-10 w-10'} object-contain rounded-lg bg-white p-1 shrink-0 shadow-sm`} />
       ) : (
         <div className={`${chico ? 'p-1.5' : 'p-2'} bg-primario rounded-xl text-white shrink-0 shadow-lg`}>
@@ -108,9 +134,12 @@ export default function Sidebar({ session }) {
       <div className={`md:hidden fixed top-0 left-0 w-full h-16 ${S.fondo} flex items-center
                        justify-between px-4 z-40 shadow-lg border-b ${S.borde}`}>
         <Marca chico />
-        <button onClick={() => setMenuAbierto(true)}
-          className={`p-2 rounded-xl ${S.texto} ${S.hover} transition`}>
+        <button onClick={() => setMenuAbierto(true)} aria-label="Abrir menú"
+          className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl ${S.texto} ${S.hover} transition relative`}>
           <Menu size={24} />
+          {pendientesHoy > 0 && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500" />
+          )}
         </button>
       </div>
 
@@ -124,11 +153,11 @@ export default function Sidebar({ session }) {
                          transition-transform duration-300 ease-out
                          ${menuAbierto ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
 
-        <div className={`px-6 md:px-6 py-4 md:py-6 flex items-center justify-between border-b ${S.borde} h-16 md:h-auto shrink-0`}>
+        <div className={`px-6 py-4 md:py-6 flex items-center justify-between border-b ${S.borde} h-16 md:h-auto shrink-0`}>
           <div className="hidden md:block w-full"><Marca /></div>
           <span className={`md:hidden font-black ${S.titulo} uppercase tracking-widest text-xs`}>Menú</span>
-          <button onClick={() => setMenuAbierto(false)}
-            className={`md:hidden p-2 rounded-xl ${S.texto} ${S.hover} transition`}>
+          <button onClick={() => setMenuAbierto(false)} aria-label="Cerrar menú"
+            className={`md:hidden min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl ${S.texto} ${S.hover} transition`}>
             <X size={20} />
           </button>
         </div>
@@ -141,7 +170,13 @@ export default function Sidebar({ session }) {
                 className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all font-bold text-[13px]
                   ${activo ? `${bgActivo} ${S.activo} shadow-lg` : S.hover}`}>
                 <span className={activo ? 'scale-110 transition-transform' : ''}>{item.icon}</span>
-                <span className="truncate">{item.label}</span>
+                <span className="truncate flex-1">{item.label}</span>
+                {item.badge > 0 && (
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 ${
+                    activo ? 'bg-white/25 text-current' : 'bg-rose-500 text-white'}`}>
+                    {item.badge > 99 ? '99+' : item.badge}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -159,7 +194,7 @@ export default function Sidebar({ session }) {
           <button onClick={cerrarSesion}
             className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl
                         text-[13px] font-bold border transition-all ${S.btn}`}>
-            <LogOut size={16} /> Cerrar Sesión
+            <LogOut size={16} /> Cerrar sesión
           </button>
         </div>
       </aside>
