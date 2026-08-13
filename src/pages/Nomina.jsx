@@ -687,7 +687,7 @@ function TabNomina({ negocioId, empleados, config, toast, confirmar, session }) 
             const otrasDedEmp = num(otrasDed[emp.id]?.monto);
 
             const calculo = calcularNomina({
-                salario_diario: numeroSeguro(form.salario_diario, { max: 999999 }),
+                salarioDiario: num(emp.salario_diario,{ max: 999999 }),
                 diasTrabajados,
                 diasFalta,
                 horasExtraDoble,
