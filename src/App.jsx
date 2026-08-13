@@ -380,7 +380,7 @@ function AltaNegocio({ session, onListo }) {
 
         <input value={nombre} maxLength={LIMITES.nombreNegocio}
           onChange={(e) => setNombre(limpiarTexto(e.target.value, LIMITES.nombreNegocio))}
-          placeholder="Ej. Balsimelli Electric" required
+          placeholder="Ej. Servicios Profesionales" required
           className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-4 text-white placeholder-slate-500 outline-none focus:border-blue-500" />
 
         {err && (

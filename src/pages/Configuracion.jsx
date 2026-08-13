@@ -136,11 +136,11 @@ export default function Configuracion({ session }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Campo label="Nombre de la empresa">
                 <input className={inputCls} value={cfg.nombre || ''}
-                  onChange={(e) => setCfg({ ...cfg, nombre: e.target.value })} placeholder="Balsimelli Electric" />
+                  onChange={(e) => setCfg({ ...cfg, nombre: e.target.value })} placeholder="Mi Empresa" />
               </Campo>
               <Campo label="Especialidad / Giro">
                 <input className={inputCls} value={cfg.especialidad || ''}
-                  onChange={(e) => setCfg({ ...cfg, especialidad: e.target.value })} placeholder="Servicios eléctricos" />
+                  onChange={(e) => setCfg({ ...cfg, especialidad: e.target.value })} placeholder="Servicios Tecnicos" />
               </Campo>
               <Campo label="Teléfono">
                 <input className={inputCls} value={cfg.telefono || ''}

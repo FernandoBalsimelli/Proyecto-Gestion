@@ -84,7 +84,7 @@ export default function MiCuenta({ session }) {
           <div className="relative mt-1">
             <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
             <input type="password" value={actual} onChange={(e) => setActual(e.target.value)}
-              className={input} placeholder="Tu contraseña de hoy" autoComplete="current-password" />
+              className={input} placeholder="Tu contraseña actual" autoComplete="current-password" />
           </div>
         </div>
 
