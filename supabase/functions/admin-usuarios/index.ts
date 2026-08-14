@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
       // Lista blanca de permisos: nunca aceptamos el objeto crudo del cliente.
       const PERMISOS_VALIDOS = [
         'ver_finanzas', 'registrar_pagos', 'registrar_gastos',
-        'eliminar_registros', 'editar_configuracion', 'gestionar_equipo',
+        'eliminar_registros', 'editar_configuracion', 'gestionar_equipo', 'gestionar_nomina', 'gestionar_inventario', 'gestionar_comercial', 'gestionar_operaciones',
       ]
       const permisos: Record<string, boolean> = {}
       for (const k of PERMISOS_VALIDOS) {

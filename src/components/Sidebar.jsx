@@ -8,6 +8,10 @@ import {
   LayoutDashboard, FileText, History, Wallet, Users, Settings,
   Shield, Zap, Menu, X, LogOut, Building2, UserCircle, Briefcase,
   CalendarDays,
+  Boxes,
+  Target,
+  ClipboardCheck,
+  Wrench,
 } from 'lucide-react';
 
 const ESTILOS = {
@@ -34,10 +38,11 @@ const ESTILOS = {
 export default function Sidebar({ session }) {
   const location = useLocation();
   const { confirmar } = useUI();
-  const { negocioId, puede, esDueno, nombreNegocio, esSuperAdmin, tema } = useNegocio();
+  const { negocioId, puede, esDueno, nombreNegocio, esSuperAdmin, tema, moduloActivo } = useNegocio();
 
   const S = ESTILOS[tema?.sidebar] || ESTILOS.oscuro;
   const bgActivo = tema?.sidebar === 'color' ? 'bg-white' : 'bg-primario';
+  const ancho = tema?.sidebar_ancho === 'compacto' ? 'w-56' : tema?.sidebar_ancho === 'amplio' ? 'w-72' : 'w-64';
 
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [logo, setLogo] = useState(null);
@@ -46,7 +51,7 @@ export default function Sidebar({ session }) {
 
   /* ── Marca del negocio ── */
   const cargarMarca = useCallback(async () => {
-    if (!negocioId) return;
+    if (!negocioId || !moduloActivo('agenda')) return;
     const { data } = await supabase.from('configuracion')
       .select('nombre, logo').eq('negocio_id', negocioId).maybeSingle();
     setNombre(data?.nombre || nombreNegocio || 'SISTEMA ERP');
@@ -62,12 +67,12 @@ export default function Sidebar({ session }) {
       .in('estado', ['pendiente', 'en_proceso'])
       .lte('fecha', fechaLocalISO());
     setPendientesHoy(count || 0);
-  }, [negocioId]);
+  }, [negocioId, moduloActivo]);
 
   useEffect(() => {
     if (!negocioId) return;
     cargarMarca();
-    cargarAgenda();
+    if (moduloActivo('agenda')) cargarAgenda();
 
     let t;
     const debounced = (fn) => () => { clearTimeout(t); t = setTimeout(fn, 400); };
@@ -82,7 +87,7 @@ export default function Sidebar({ session }) {
       .subscribe();
 
     return () => { clearTimeout(t); supabase.removeChannel(canal); };
-  }, [negocioId, cargarMarca, cargarAgenda]);
+  }, [negocioId, cargarMarca, cargarAgenda, moduloActivo]);
 
   useEffect(() => { setMenuAbierto(false); }, [location.pathname]);
 
@@ -100,19 +105,29 @@ export default function Sidebar({ session }) {
     if (ok) await supabase.auth.signOut();
   };
 
-  const menuItems = [
-    { icon: <LayoutDashboard size={20} />, label: 'Dashboard',        path: '/' },
-    { icon: <CalendarDays size={20} />,    label: 'Agenda',           path: '/agenda', badge: pendientesHoy },
-    { icon: <FileText size={20} />,        label: 'Nueva cotización', path: '/presupuestos' },
-    { icon: <History size={20} />,         label: 'Historial',        path: '/historial' },
-    ...(puede('ver_finanzas')         ? [{ icon: <Wallet size={20} />,    label: 'Finanzas',       path: '/finanzas' }] : []),
-    { icon: <Users size={20} />,           label: 'Clientes',         path: '/clientes' },
-    ...(puede('editar_configuracion') ? [{ icon: <Settings size={20} />,  label: 'Configuración',  path: '/configuracion' }] : []),
-    ...(puede('gestionar_equipo')     ? [{ icon: <Shield size={20} />,    label: 'Equipo',         path: '/equipo' }] : []),
-    ...(puede('gestionar_equipo')     ? [{ icon: <Briefcase size={20} />, label: 'Nómina',         path: '/nomina' }] : []),
-    ...(esSuperAdmin                  ? [{ icon: <Building2 size={20} />, label: 'Administración', path: '/administracion' }] : []),
-    { icon: <UserCircle size={20} />,      label: 'Mi cuenta',        path: '/mi-cuenta' },
+  const menuBase = [
+    { id: 'dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/' },
+    ...(moduloActivo('agenda') ? [{ id: 'agenda', icon: <CalendarDays size={20} />, label: 'Agenda', path: '/agenda', badge: pendientesHoy }] : []),
+    { id: 'presupuestos', icon: <FileText size={20} />, label: 'Nueva cotización', path: '/presupuestos' },
+    { id: 'historial', icon: <History size={20} />, label: 'Historial', path: '/historial' },
+    ...(moduloActivo('finanzas') && puede('ver_finanzas') ? [{ id: 'finanzas', icon: <Wallet size={20} />, label: 'Finanzas', path: '/finanzas' }] : []),
+    { id: 'clientes', icon: <Users size={20} />, label: 'Clientes', path: '/clientes' },
+    ...(puede('editar_configuracion') ? [{ id: 'configuracion', icon: <Settings size={20} />, label: 'Configuración', path: '/configuracion' }] : []),
+    ...(puede('gestionar_equipo') ? [{ id: 'equipo', icon: <Shield size={20} />, label: 'Equipo', path: '/equipo' }] : []),
+    ...(moduloActivo('nomina') && puede('gestionar_nomina') ? [{ id: 'nomina', icon: <Briefcase size={20} />, label: 'Nómina', path: '/nomina' }] : []),
+    ...(moduloActivo('inventario') && puede('gestionar_inventario') ? [{ id: 'inventario', icon: <Boxes size={20} />, label: 'Inventario', path: '/inventario' }] : []),
+    ...(moduloActivo('comercial') && puede('gestionar_comercial') ? [{ id: 'oportunidades', icon: <Target size={20} />, label: 'Oportunidades', path: '/oportunidades' }] : []),
+    ...(moduloActivo('operaciones') && puede('gestionar_operaciones') ? [{ id: 'operacion', icon: <ClipboardCheck size={20} />, label: 'Operación', path: '/operacion' }] : []),
+    ...(moduloActivo('activos') && puede('gestionar_operaciones') ? [{ id: 'activos', icon: <Wrench size={20} />, label: 'Activos', path: '/activos' }] : []),
+    ...(esSuperAdmin ? [{ id: 'administracion', icon: <Building2 size={20} />, label: 'Administración', path: '/administracion' }] : []),
+    { id: 'cuenta', icon: <UserCircle size={20} />, label: 'Mi cuenta', path: '/mi-cuenta' },
   ];
+  const orden = tema?.sidebar_orden || [];
+  const ocultos = tema?.sidebar_ocultos || [];
+  const menuItems = menuBase.filter(item => !ocultos.includes(item.id)).sort((a, b) => {
+    const ia = orden.indexOf(a.id), ib = orden.indexOf(b.id);
+    return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+  });
 
   const Marca = ({ chico }) => (
     <div className="flex items-center gap-3 overflow-hidden min-w-0">
@@ -149,7 +164,7 @@ export default function Sidebar({ session }) {
       )}
 
       {/* ── Sidebar ── */}
-      <aside className={`fixed top-0 left-0 h-screen ${S.fondo} ${S.texto} flex flex-col shadow-2xl z-50 w-64
+      <aside className={`fixed top-0 left-0 h-screen ${S.fondo} ${S.texto} flex flex-col shadow-2xl z-50 ${ancho}
                          transition-transform duration-300 ease-out
                          ${menuAbierto ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
 

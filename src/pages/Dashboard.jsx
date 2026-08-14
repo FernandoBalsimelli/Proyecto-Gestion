@@ -1,22 +1,27 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend,
 } from 'recharts';
 import {
   DollarSign, AlertCircle, TrendingDown, FileText, Clock, Lock,
-  Wallet, Users, Percent, Receipt, Trophy, ArrowRight,
+  Wallet, Users, Percent, Receipt, Trophy, ArrowRight, Boxes, Target, CalendarDays, Zap, Pencil, GripVertical, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient.js';
 import { useNegocio } from '../context/NegocioContext.jsx';
-import { CATALOGO_WIDGETS } from '../components/DashboardConfig.jsx';
+import { ACCIONES_RAPIDAS, CATALOGO_WIDGETS } from '../components/DashboardConfig.jsx';
 import FiltroPeriodo from '../components/FiltroPeriodo.jsx';
-import { rangoFechas, enRango, formatoMX } from '../utils/fecha.js';
-import { WidgetAgendaHoy, WidgetAgendaProximos, KpiAgenda } from '../components/WidgetAgenda.jsx';
+import { rangoFechas, enRango } from '../utils/fecha.js';
+import { WidgetAgendaHoy, WidgetAgendaProximos, WidgetRecordatorios, KpiAgenda } from '../components/WidgetAgenda.jsx';
 
 const money = (n) => `$${(Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const num = (v) => Number(v) || 0;
+const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+const formatoMX = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
+
+// Topes de lectura: sin esto cada carga del panel baja la tabla completa.
+const MAX_VENTAS = 1000;
+const MAX_MOVS = 2000;
 
 function Kpi({ icon, bg, text, label, valor, destacado, sub }) {
   return (
@@ -52,48 +57,78 @@ const tooltipStyle = {
 };
 
 export default function Dashboard({ session }) {
-  const { negocioId, puede, nombreNegocio, dashboardCfg } = useNegocio();
+  const { negocioId, puede, nombreNegocio, dashboardCfg, setDashboardCfg, moduloActivo } = useNegocio();
   const navigate = useNavigate();
-  const verFinanzas = puede('ver_finanzas');
+  const verFinanzas = moduloActivo('finanzas') && puede('ver_finanzas');
 
   const [ventas, setVentas] = useState([]);
   const [gastos, setGastos] = useState([]);
   const [pagos, setPagos] = useState([]);
   const [clientes, setClientes] = useState(0);
+  const [inventario, setInventario] = useState([]);
+  const [oportunidades, setOportunidades] = useState([]);
   const [cargando, setCargando] = useState(true);
+  const [editandoPanel, setEditandoPanel] = useState(false);
+  const [arrastrandoWidget, setArrastrandoWidget] = useState(null);
 
   const [periodo, setPeriodo] = useState(dashboardCfg?.periodo_default || 'mes');
   const [custom, setCustom] = useState({ desde: '', hasta: '' });
 
-  useEffect(() => { setPeriodo(dashboardCfg?.periodo_default || 'mes'); }, [dashboardCfg?.periodo_default]);
+  useEffect(() => {
+    setPeriodo(dashboardCfg?.periodo_default || 'mes');
+  }, [dashboardCfg?.periodo_default]);
 
-  const fetchData = async () => {
+  /* ─────────── Datos ───────────
+     fetchData va en useCallback: antes se redefinía en cada render, así que
+     el useEffect del canal realtime lo veía "nuevo" y destruía/recreaba la
+     suscripción constantemente. */
+  const fetchData = useCallback(async () => {
     if (!negocioId) return;
-    const [v, g, p, c] = await Promise.all([
-      supabase.from('ventas').select('*').eq('negocio_id', negocioId).order('fecha', { ascending: false }),
-      verFinanzas ? supabase.from('gastos').select('*').eq('negocio_id', negocioId) : Promise.resolve({ data: [] }),
-      supabase.from('pagos').select('*').eq('negocio_id', negocioId).order('fecha', { ascending: false }),
+    const [v, g, p, c, i, o] = await Promise.all([
+      supabase.from('ventas').select('*')
+        .eq('negocio_id', negocioId)
+        .order('fecha', { ascending: false })
+        .limit(MAX_VENTAS),
+      verFinanzas
+        ? supabase.from('gastos').select('*').eq('negocio_id', negocioId).limit(MAX_MOVS)
+        : Promise.resolve({ data: [] }),
+      supabase.from('pagos').select('*')
+        .eq('negocio_id', negocioId)
+        .order('fecha', { ascending: false })
+        .limit(MAX_MOVS),
       supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('negocio_id', negocioId),
+      moduloActivo('inventario') ? supabase.from('almacen_articulos').select('id, existencias, minimo').eq('negocio_id', negocioId).eq('activo', true).limit(2000) : Promise.resolve({ data: [] }),
+      moduloActivo('comercial') ? supabase.from('oportunidades').select('id, nombre, etapa, monto_estimado, probabilidad, proximo_contacto').eq('negocio_id', negocioId).limit(1000) : Promise.resolve({ data: [] }),
     ]);
     setVentas(v.data || []);
     setGastos(g.data || []);
     setPagos(p.data || []);
     setClientes(c.count || 0);
+    setInventario(i.data || []);
+    setOportunidades(o.data || []);
     setCargando(false);
-  };
+  }, [negocioId, verFinanzas, moduloActivo]);
 
   useEffect(() => {
-    if (!negocioId) return;
+    if (!negocioId) { setCargando(false); return; }
     fetchData();
-    const canal = supabase.channel(`dash-${negocioId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ventas', filter: `negocio_id=eq.${negocioId}` }, fetchData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'gastos', filter: `negocio_id=eq.${negocioId}` }, fetchData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pagos',  filter: `negocio_id=eq.${negocioId}` }, fetchData)
-      .subscribe();
-    return () => { supabase.removeChannel(canal); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [negocioId, verFinanzas]);
 
+    /* Antirrebote: al guardar una cotización llegan varios eventos seguidos
+       (ventas + pagos). Sin esto se dispararían 4 consultas por cada uno. */
+    let t;
+    const recargar = () => { clearTimeout(t); t = setTimeout(fetchData, 500); };
+
+    const canal = supabase.channel(`dash-${negocioId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ventas', filter: `negocio_id=eq.${negocioId}` }, recargar)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'gastos', filter: `negocio_id=eq.${negocioId}` }, recargar)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pagos',  filter: `negocio_id=eq.${negocioId}` }, recargar)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'oportunidades', filter: `negocio_id=eq.${negocioId}` }, recargar)
+      .subscribe();
+
+    return () => { clearTimeout(t); supabase.removeChannel(canal); };
+  }, [negocioId, fetchData]);
+
+  /* ─────────── Cálculos ─────────── */
   const rango   = useMemo(() => rangoFechas(periodo, custom), [periodo, custom]);
   const fVentas = useMemo(() => periodo === 'todo' ? ventas : ventas.filter(v => enRango(v.fecha, rango)), [ventas, rango, periodo]);
   const fGastos = useMemo(() => periodo === 'todo' ? gastos : gastos.filter(g => enRango(g.fecha, rango)), [gastos, rango, periodo]);
@@ -107,8 +142,10 @@ export default function Dashboard({ session }) {
     const cobrado = fPagos.reduce((a, p) => a + num(p.monto), 0);
     const egresos = fGastos.reduce((a, g) => a + num(g.monto), 0);
 
-    // Saldo de TODA la cartera (no solo del periodo)
-    const cartera = ventas.filter(v => v.estado !== 'cancelado')
+    // El saldo por cobrar es de TODA la cartera, no solo del periodo:
+    // una deuda de hace tres meses te sigue debiendo hoy.
+    const cartera = ventas
+      .filter(v => v.estado !== 'cancelado')
       .map(v => ({ ...v, saldo: Math.max(0, num(v.monto) - num(v.pagado)) }))
       .filter(v => v.saldo > 0.01)
       .sort((a, b) => b.saldo - a.saldo);
@@ -119,11 +156,12 @@ export default function Dashboard({ session }) {
 
     const porCliente = {};
     fPagos.forEach(p => {
-      const vt = ventas.find(v => v.id === p.venta_id);
+      const vt = ventas.find(v => String(v.id) === String(p.venta_id));
       const k = vt?.cliente || 'Público en General';
       porCliente[k] = (porCliente[k] || 0) + num(p.monto);
     });
-    const top = Object.entries(porCliente).sort((a, b) => b[1] - a[1]).slice(0, 5)
+    const top = Object.entries(porCliente)
+      .sort((a, b) => b[1] - a[1]).slice(0, 5)
       .map(([name, valor]) => ({ name, valor }));
 
     const porCat = {};
@@ -142,17 +180,21 @@ export default function Dashboard({ session }) {
       });
     }
 
+    const abiertasComercial = oportunidades.filter(o => !['ganado', 'perdido'].includes(o.etapa));
+    const pronosticoComercial = abiertasComercial.reduce((a, o) => a + num(o.monto_estimado) * num(o.probabilidad) / 100, 0);
+    const seguimientosComerciales = abiertasComercial.filter(o => o.proximo_contacto).sort((a, b) => a.proximo_contacto.localeCompare(b.proximo_contacto));
     return {
       pagadas, pendientes, cobrado, egresos, porCobrar, cartera,
       utilidad: cobrado - egresos,
       total: fVentas.length,
       ticket: pagadas.length ? facturado / Math.max(1, pagadas.length) : 0,
       cierre: cerradas ? (pagadas.length / cerradas) * 100 : 0,
-      top, cats, meses,
+      top, cats, meses, abiertasComercial, pronosticoComercial, seguimientosComerciales,
     };
-  }, [fVentas, fGastos, fPagos, ventas, gastos, pagos]);
+  }, [fVentas, fGastos, fPagos, ventas, gastos, pagos, oportunidades]);
 
   const COLORES = ['#3b82f6', '#f43f5e', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'];
+
   const irHistorial = (
     <button onClick={() => navigate('/historial')}
       className="text-[10px] font-black uppercase text-primario hover:underline flex items-center gap-1">
@@ -160,7 +202,25 @@ export default function Dashboard({ session }) {
     </button>
   );
 
+  const accionesDashboard = useMemo(() => {
+    const catalogo = {
+      cotizacion: { icon: <FileText size={20} />, ruta: '/presupuestos', color: 'bg-blue-50 text-blue-600' },
+      agenda: { icon: <CalendarDays size={20} />, ruta: '/agenda', color: 'bg-amber-50 text-amber-600' },
+      cliente: { icon: <Users size={20} />, ruta: '/clientes', color: 'bg-violet-50 text-violet-600' },
+      oportunidad: { icon: <Target size={20} />, ruta: '/oportunidades', color: 'bg-indigo-50 text-indigo-600' },
+      gasto: { icon: <TrendingDown size={20} />, ruta: '/finanzas', color: 'bg-rose-50 text-rose-600' },
+      inventario: { icon: <Boxes size={20} />, ruta: '/inventario', color: 'bg-emerald-50 text-emerald-600' },
+    };
+    const elegidas = Array.isArray(dashboardCfg?.accesos_rapidos) ? dashboardCfg.accesos_rapidos : ['cotizacion', 'agenda', 'cliente'];
+    return elegidas.filter(id => {
+      const a = ACCIONES_RAPIDAS[id];
+      return a && (!a.modulo || moduloActivo(a.modulo)) && (!a.permiso || puede(a.permiso));
+    }).map(id => ({ id, ...ACCIONES_RAPIDAS[id], ...catalogo[id] }));
+  }, [dashboardCfg?.accesos_rapidos, moduloActivo, puede]);
+
+  /* ─────────── Catálogo de widgets ─────────── */
   const W = {
+    /* ── Indicadores ── */
     ingresos: () => <Kpi icon={<DollarSign size={24} />} bg="bg-emerald-100" text="text-emerald-600"
       label="Dinero recibido" valor={money(d.cobrado)} sub={`${fPagos.length} abono(s)`} />,
     por_cobrar: () => <Kpi icon={<AlertCircle size={24} />} bg="bg-amber-100" text="text-amber-600"
@@ -177,10 +237,22 @@ export default function Dashboard({ session }) {
       label="Tasa de cierre" valor={`${d.cierre.toFixed(0)}%`} />,
     clientes_activos: () => <Kpi icon={<Users size={24} />} bg="bg-indigo-100" text="text-indigo-600"
       label="Clientes" valor={clientes} />,
-      agenda_kpi:      () => <KpiAgenda />,
-    agenda_hoy:      () => <WidgetAgendaHoy />,
-    agenda_proximos: () => <WidgetAgendaProximos />,
+    inventario_bajo: () => <Kpi icon={<Boxes size={24} />} bg="bg-amber-100" text="text-amber-700"
+      label="Por reponer" valor={inventario.filter(i => num(i.existencias) <= num(i.minimo)).length} sub="Materiales en mínimo o sin stock" />,
+    agenda_kpi: () => <KpiAgenda />,
+    oportunidades_abiertas: () => <Kpi icon={<Target size={24} />} bg="bg-indigo-100" text="text-indigo-600" label="Oportunidades abiertas" valor={d.abiertasComercial.length} sub="Prospectos en proceso" />,
+    pronostico_comercial: () => <Kpi icon={<Target size={24} />} bg="bg-emerald-100" text="text-emerald-600" label="Pronóstico comercial" valor={money(d.pronosticoComercial)} sub="Monto × probabilidad" />,
+    accesos_rapidos: () => <Panel titulo="Accesos directos" icon={<Zap size={14} />}><div className="grid grid-cols-2 md:grid-cols-3 gap-3">{accionesDashboard.map(a => <button key={a.id} onClick={() => navigate(a.ruta)} className="text-left p-4 rounded-2xl bg-slate-50 hover:bg-primario-suave transition group"><span className={`w-10 h-10 flex items-center justify-center rounded-xl mb-3 ${a.color}`}>{a.icon}</span><b className="block text-sm text-slate-700 group-hover:text-primario-dark">{a.label}</b><span className="text-[10px] font-bold text-slate-400">Abrir módulo</span></button>)}</div></Panel>,
 
+    /* ── Bloques de agenda ── */
+    agenda_hoy: () => <WidgetAgendaHoy />,
+    agenda_proximos: () => <WidgetAgendaProximos />,
+    recordatorios: () => <WidgetRecordatorios />,
+    seguimientos_comerciales: () => <Panel titulo="Seguimientos comerciales" icon={<CalendarDays size={14} />} accion={<button onClick={() => navigate('/oportunidades')} className="text-[10px] font-black uppercase text-primario">Ver embudo</button>}>
+      {d.seguimientosComerciales.length === 0 ? <p className="py-8 text-center text-sm font-bold text-slate-400">Sin seguimientos programados.</p> : <div className="space-y-2">{d.seguimientosComerciales.slice(0, 6).map(o => <button key={o.id} onClick={() => navigate('/oportunidades')} className="w-full text-left p-3 rounded-xl bg-slate-50 hover:bg-primario-suave transition flex justify-between gap-3"><span className="min-w-0"><b className="block text-sm text-slate-700 truncate">{o.nombre}</b><span className="text-[10px] font-bold text-slate-400 uppercase">{o.etapa}</span></span><span className="text-[11px] font-black text-amber-600 shrink-0">{formatoMX(o.proximo_contacto)}</span></button>)}</div>}
+    </Panel>,
+
+    /* ── Bloques ── */
     grafica_cartera: () => (
       <Panel titulo="Estado de cartera">
         <div className="h-[280px]">
@@ -192,10 +264,15 @@ export default function Dashboard({ session }) {
             ]} margin={{ top: 10, right: 10, left: -10 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#94a3b8' }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#cbd5e1' }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#cbd5e1' }}
+                tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
               <Tooltip cursor={{ fill: '#f8fafc' }} formatter={(v) => money(v)} contentStyle={tooltipStyle} />
               <Bar dataKey="valor" radius={[12, 12, 0, 0]}>
-                {[0, 1, 2].map(i => <Cell key={i} fill={verFinanzas ? ['#10b981', '#f43f5e', '#f59e0b'][i] : ['#10b981', '#f59e0b'][i]} />)}
+                {[0, 1, 2].map(i => (
+                  <Cell key={i} fill={verFinanzas
+                    ? ['#10b981', '#f43f5e', '#f59e0b'][i]
+                    : ['#10b981', '#f59e0b'][i]} />
+                ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -220,10 +297,13 @@ export default function Dashboard({ session }) {
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#94a3b8' }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#cbd5e1' }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#cbd5e1' }}
+                tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
               <Tooltip formatter={(v) => money(v)} contentStyle={tooltipStyle} />
               <Area type="monotone" dataKey="ingresos" name="Recibido" stroke="#10b981" strokeWidth={3} fill="url(#gi)" />
-              {verFinanzas && <Area type="monotone" dataKey="egresos" name="Egresos" stroke="#f43f5e" strokeWidth={3} fill="url(#ge)" />}
+              {verFinanzas && (
+                <Area type="monotone" dataKey="egresos" name="Egresos" stroke="#f43f5e" strokeWidth={3} fill="url(#ge)" />
+              )}
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -272,7 +352,7 @@ export default function Dashboard({ session }) {
         ) : (
           <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
             {fPagos.slice(0, 8).map(p => {
-              const vt = ventas.find(v => v.id === p.venta_id);
+              const vt = ventas.find(v => String(v.id) === String(p.venta_id));
               return (
                 <div key={p.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-2xl gap-3">
                   <div className="flex items-center gap-3 min-w-0">
@@ -293,7 +373,9 @@ export default function Dashboard({ session }) {
 
     top_clientes: () => (
       <Panel titulo="Top 5 clientes" icon={<Trophy size={14} />}>
-        {d.top.length === 0 ? <p className="text-slate-400 text-sm font-medium py-10 text-center">Sin datos en este periodo.</p> : (
+        {d.top.length === 0 ? (
+          <p className="text-slate-400 text-sm font-medium py-10 text-center">Sin datos en este periodo.</p>
+        ) : (
           <div className="space-y-3">
             {d.top.map((c, i) => (
               <div key={c.name}>
@@ -302,7 +384,8 @@ export default function Dashboard({ session }) {
                   <span className="font-black text-slate-900 shrink-0 tabular-nums">{money(c.valor)}</span>
                 </div>
                 <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-primario rounded-full" style={{ width: `${(c.valor / d.top[0].valor) * 100}%` }} />
+                  <div className="h-full bg-primario rounded-full"
+                    style={{ width: `${(c.valor / d.top[0].valor) * 100}%` }} />
                 </div>
               </div>
             ))}
@@ -313,7 +396,9 @@ export default function Dashboard({ session }) {
 
     gastos_categoria: () => (
       <Panel titulo="Gastos por categoría">
-        {d.cats.length === 0 ? <p className="text-slate-400 text-sm font-medium py-10 text-center">Sin gastos en este periodo.</p> : (
+        {d.cats.length === 0 ? (
+          <p className="text-slate-400 text-sm font-medium py-10 text-center">Sin gastos en este periodo.</p>
+        ) : (
           <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -358,12 +443,51 @@ export default function Dashboard({ session }) {
 
   const activos = (dashboardCfg?.widgets || []).filter(id => {
     const w = CATALOGO_WIDGETS[id];
-    return w && W[id] && (!w.permiso || puede(w.permiso));
+    return w && W[id] && (!w.permiso || puede(w.permiso)) && (!w.modulo || moduloActivo(w.modulo));
   });
   const kpis    = activos.filter(id => CATALOGO_WIDGETS[id].tipo === 'kpi');
   const bloques = activos.filter(id => CATALOGO_WIDGETS[id].tipo === 'bloque');
+  const moverWidget = (origen, destino) => {
+    if (!origen || !destino || origen === destino) return;
+    const n = [...(dashboardCfg.widgets || [])], a = n.indexOf(origen), b = n.indexOf(destino);
+    if (a < 0 || b < 0) return;
+    const [id] = n.splice(a, 1); n.splice(b, 0, id);
+    setDashboardCfg({ ...dashboardCfg, widgets: n });
+  };
+  const moverConBoton = (id, dir) => {
+    const lista = CATALOGO_WIDGETS[id]?.tipo === 'kpi' ? kpis : bloques;
+    const i = lista.indexOf(id), destino = lista[i + dir]; if (destino) moverWidget(id, destino);
+  };
+  const finalizarToque = (e) => {
+    const toque = e.changedTouches?.[0];
+    const destino = toque && document.elementFromPoint(toque.clientX, toque.clientY)?.closest('[data-dashboard-widget]')?.dataset.dashboardWidget;
+    moverWidget(arrastrandoWidget, destino); setArrastrandoWidget(null);
+  };
+  const WidgetEditable = ({ id }) => <div data-dashboard-widget={id} className={`relative ${arrastrandoWidget === id ? 'opacity-40' : ''}`}>
+    {editandoPanel && <div className="absolute right-3 top-3 z-20 flex items-center gap-1 bg-white border shadow-md rounded-xl p-1">
+      <span draggable onDragStart={() => setArrastrandoWidget(id)} onDragEnd={() => setArrastrandoWidget(null)} onTouchStart={() => setArrastrandoWidget(id)} onTouchEnd={finalizarToque} style={{ touchAction: 'none' }} className="p-1.5 text-slate-400 cursor-grab active:cursor-grabbing"><GripVertical size={16}/></span>
+      <button onClick={() => moverConBoton(id, -1)} aria-label="Mover antes" className="p-1 text-slate-500"><ChevronUp size={15}/></button>
+      <button onClick={() => moverConBoton(id, 1)} aria-label="Mover después" className="p-1 text-slate-500"><ChevronDown size={15}/></button>
+    </div>}
+    <div draggable={editandoPanel} onDragStart={() => editandoPanel && setArrastrandoWidget(id)} onDragOver={e => editandoPanel && e.preventDefault()} onDrop={() => { moverWidget(arrastrandoWidget, id); setArrastrandoWidget(null); }}>{W[id]()}</div>
+  </div>;
 
-  if (!negocioId || cargando) {
+  /* ─────────── Render ─────────── */
+  if (!negocioId && !cargando) {
+    return (
+      <div className="p-4 md:p-8">
+        <div className="bg-amber-50 border-2 border-amber-200 rounded-3xl p-8 text-center max-w-lg mx-auto">
+          <h3 className="font-black text-amber-800 uppercase">No se pudo cargar tu negocio</h3>
+          <p className="text-amber-700 text-sm font-medium mt-2">
+            Cierra sesión y vuelve a entrar. Si continúa, revisa las políticas RLS
+            de la tabla <b>miembros</b>.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (cargando) {
     return (
       <div className="p-8 space-y-6">
         <div className="h-10 w-72 bg-slate-200 rounded-2xl animate-pulse" />
@@ -379,16 +503,19 @@ export default function Dashboard({ session }) {
     <div className="p-4 md:p-8 space-y-6 bg-slate-50 min-h-screen">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
         <div>
-          <h2 className="text-2xl md:text-3xl font-black text-slate-800 uppercase tracking-tighter">Panel de Control</h2>
+          <h2 className="text-2xl md:text-3xl font-black text-slate-800 uppercase tracking-tighter">Panel de control</h2>
           <p className="text-slate-500 font-medium text-sm">
             {nombreNegocio} · {fVentas.length} documento(s) en el periodo
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        {puede('editar_configuracion') && <button onClick={() => setEditandoPanel(v => !v)} className={`p-2.5 rounded-xl border text-xs font-black flex gap-2 items-center ${editandoPanel?'bg-primario text-white border-primario':'bg-white text-slate-500 border-slate-200'}`}><Pencil size={14}/>{editandoPanel?'Terminar edición':'Editar panel'}</button>}
         {!verFinanzas && (
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-3 py-2 rounded-xl flex items-center gap-1.5 w-fit">
             <Lock size={12} /> Vista limitada
           </span>
         )}
+        </div>
       </div>
 
       <FiltroPeriodo valor={periodo} onChange={setPeriodo} custom={custom} onCustom={setCustom} />
@@ -396,19 +523,21 @@ export default function Dashboard({ session }) {
       {activos.length === 0 && (
         <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-10 text-center">
           <p className="font-bold text-slate-500">Tu panel está vacío.</p>
-          <p className="text-slate-400 text-sm mt-1">Ve a Configuración → Panel para elegir qué mostrar.</p>
+          <p className="text-slate-400 text-sm mt-1">
+            Ve a Configuración → Panel para elegir qué mostrar.
+          </p>
         </div>
       )}
 
       {kpis.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-          {kpis.map(id => <React.Fragment key={id}>{W[id]()}</React.Fragment>)}
+          {kpis.map(id => <WidgetEditable key={id} id={id} />)}
         </div>
       )}
 
       {bloques.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {bloques.map(id => <React.Fragment key={id}>{W[id]()}</React.Fragment>)}
+          {bloques.map(id => <WidgetEditable key={id} id={id} />)}
         </div>
       )}
     </div>

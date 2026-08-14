@@ -90,6 +90,7 @@ export default function Historial({ session }) {
 
   const [ventas, setVentas] = useState([]);
   const [clientes, setClientes] = useState([]);
+  const [agendaPorVenta, setAgendaPorVenta] = useState({});
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [periodo, setPeriodo] = useState('mes');
@@ -102,7 +103,7 @@ export default function Historial({ session }) {
   /* ─────────── Datos ─────────── */
   const fetchVentas = useCallback(async () => {
     if (!negocioId) return [];
-    const [v, c] = await Promise.all([
+    const [v, c, a] = await Promise.all([
       supabase.from('ventas').select('*')
         .eq('negocio_id', negocioId)
         .order('fecha', { ascending: false })
@@ -110,6 +111,8 @@ export default function Historial({ session }) {
         .limit(MAX_DOCUMENTOS),
       supabase.from('clientes').select('id, telefono')
         .eq('negocio_id', negocioId).limit(2000),
+      supabase.from('agenda').select('id, titulo, fecha, estado, venta_id')
+        .eq('negocio_id', negocioId).not('venta_id', 'is', null).limit(1000),
     ]);
 
     if (v.error) {
@@ -120,6 +123,7 @@ export default function Historial({ session }) {
     setErrorCarga(null);
     setVentas(v.data || []);
     setClientes(c.data || []);
+    setAgendaPorVenta(Object.fromEntries((a.data || []).map(x => [String(x.venta_id), x])));
     setCargando(false);
     return v.data || [];
   }, [negocioId]);
@@ -383,6 +387,7 @@ export default function Historial({ session }) {
           const pct = total > 0 ? Math.min(100, (cobrado / total) * 100) : 0;
           const vencido = diasVencido(v);
           const editando = editandoFecha?.id === v.id;
+          const trabajo = agendaPorVenta[String(v.id)];
 
           return (
             <div key={v.id}
@@ -415,6 +420,12 @@ export default function Historial({ session }) {
                     {formatoMX(v.fecha)} · {v.metodo_pago || 'Sin método'}
                     {v.fecha_compromiso ? ` · compromiso ${formatoMX(v.fecha_compromiso)}` : ''}
                   </p>
+                  {trabajo && (
+                    <button onClick={() => navigate('/agenda')}
+                      className="mt-1 text-[10px] font-black uppercase text-primario hover:underline inline-flex items-center gap-1">
+                      <CalendarClock size={11} /> Agenda: {trabajo.titulo} · {formatoMX(trabajo.fecha)}
+                    </button>
+                  )}
 
                   {parcial && (
                     <div className="mt-2.5 max-w-xs">

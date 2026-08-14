@@ -38,7 +38,8 @@ export const hexToRgb = (hex) => {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 };
 
-const money = (n) => `$${(Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
+const SIMBOLOS_MONEDA = { MXN: 'MX$', USD: 'US$', EUR: '€' };
+const money = (n, moneda = 'MXN') => `${SIMBOLOS_MONEDA[moneda] || '$'}${(Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
 
 /**
  * Recorta texto para el PDF. Sin esto, una descripción de 5 000 caracteres
@@ -63,7 +64,7 @@ const nombreArchivoSeguro = (s) =>
  */
 export function generarDocumentoPDF({
   config = {}, pdfCfg = {}, cliente = '', fecha = '', metodoPago = '',
-  folio = null, conceptos = [], subtotal = 0, montoIva = 0, total = 0, incluirIva = false,
+  folio = null, conceptos = [], subtotal = 0, montoIva = 0, total = 0, incluirIva = false, vigencia = '',
 }, salida = 'save') {
 
   const P = PLANTILLAS[pdfCfg.plantilla] || PLANTILLAS.clasico;
@@ -71,6 +72,11 @@ export function generarDocumentoPDF({
   const TEXTO = [70, 70, 70];
   const GRIS = [245, 246, 248];
   const FUENTE = P.serif ? 'times' : 'helvetica';
+  const moneda = pdfCfg.moneda || 'MXN';
+  const tasaImpuesto = Math.max(0, Math.min(100, Number(pdfCfg.tasa_impuesto ?? 16)));
+  const etiquetaImpuesto = corte(pdfCfg.etiqueta_impuesto || 'IVA', 20).toUpperCase();
+  const etiquetaTotal = corte(pdfCfg.etiqueta_total || 'TOTAL', 24).toUpperCase();
+  const folioTexto = `${corte(pdfCfg.prefijo_folio || '', 12)}${folio ? String(folio).padStart(5, '0') : 'BORRADOR'}`;
 
   const doc = new jsPDF();
   doc.setFont(FUENTE, 'normal');
@@ -115,6 +121,10 @@ export function generarDocumentoPDF({
     doc.setFontSize(9).setTextColor(150, 150, 150).setFont(FUENTE, 'normal');
     doc.text(corte(config.especialidad, LIMITES.especialidad).toUpperCase(), 196, top + 34, { align: 'right' });
   }
+  if (pdfCfg.mostrar_nota !== false && pdfCfg.nota_destacada) {
+    doc.setFontSize(8).setTextColor(...ACENTO).setFont(FUENTE, 'bold');
+    doc.text(corte(pdfCfg.nota_destacada, 110), 196, top + 41, { align: 'right' });
+  }
 
   /* ── Cliente / folio ── */
   const infoY = top + 52;
@@ -124,9 +134,10 @@ export function generarDocumentoPDF({
   doc.text(`Nombre:  ${corte(cliente || 'Público en General', LIMITES.nombre)}`, izq, infoY + 7);
 
   doc.setFontSize(9).setFont(FUENTE, 'bold');
-  doc.text(`${titulo}: N° ${folio ? String(folio).padStart(5, '0') : 'BORRADOR'}`, 196, infoY, { align: 'right' });
+  doc.text(`${titulo}: N° ${folioTexto}`, 196, infoY, { align: 'right' });
   doc.text(`FECHA: ${corte(fecha, 20)}`, 196, infoY + 5, { align: 'right' });
-  doc.text(`PAGO: ${corte(metodoPago, 20).toUpperCase()}`, 196, infoY + 10, { align: 'right' });
+  if (pdfCfg.mostrar_metodo_pago !== false) doc.text(`PAGO: ${corte(metodoPago, 20).toUpperCase()}`, 196, infoY + 10, { align: 'right' });
+  if (pdfCfg.mostrar_vigencia !== false && vigencia) doc.text(`VIGENCIA: ${corte(vigencia, 20)}`, 196, infoY + (pdfCfg.mostrar_metodo_pago !== false ? 15 : 10), { align: 'right' });
 
   /* ── Tabla ── */
   autoTable(doc, {
@@ -136,8 +147,8 @@ export function generarDocumentoPDF({
     body: filas.map(c => [
       corte(c.descripcion, LIMITES.descripcionConcepto),
       Math.min(LIMITES.maxCantidad, Number(c.cantidad) || 0),
-      money(c.precio),
-      money((Number(c.cantidad) || 0) * (Number(c.precio) || 0)),
+      money(c.precio, moneda),
+      money((Number(c.cantidad) || 0) * (Number(c.precio) || 0), moneda),
     ]),
     theme: pdfCfg.tabla || P.tabla,
     styles: { font: FUENTE, fontSize: 9, cellPadding: 4, textColor: TEXTO, overflow: 'linebreak' },
@@ -157,7 +168,7 @@ export function generarDocumentoPDF({
       doc.setDrawColor(220, 220, 220).setLineWidth(0.3);
       doc.line(izq, 280, 196, 280);
       const pie = corte(
-        [config.telefono, config.sitioWeb, config.direccion].filter(Boolean).join('   |   '),
+        [pdfCfg.pie_texto, ...(pdfCfg.mostrar_contacto_empresa === false ? [] : [config.telefono, config.sitioWeb, config.direccion])].filter(Boolean).join('   |   '),
         150
       );
       doc.text(pie, 105, 287, { align: 'center' });
@@ -177,20 +188,20 @@ export function generarDocumentoPDF({
   const baseY = 210;
   doc.setFontSize(10).setTextColor(...TEXTO).setFont(FUENTE, 'normal');
   doc.text('Subtotal', 155, baseY, { align: 'right' });
-  doc.text(money(subtotal), 196, baseY, { align: 'right' });
+  doc.text(money(subtotal, moneda), 196, baseY, { align: 'right' });
 
   let boxY = baseY + 6;
   if (incluirIva) {
-    doc.text('IVA (16%)', 155, baseY + 7, { align: 'right' });
-    doc.text(money(montoIva), 196, baseY + 7, { align: 'right' });
+    doc.text(`${etiquetaImpuesto} (${tasaImpuesto}%)`, 155, baseY + 7, { align: 'right' });
+    doc.text(money(montoIva, moneda), 196, baseY + 7, { align: 'right' });
     boxY += 7;
   }
 
   doc.setFillColor(...ACENTO);
   doc.roundedRect(135, boxY - 5, 61, 9, 2, 2, 'F');
   doc.setTextColor(255, 255, 255).setFont(FUENTE, 'bold').setFontSize(10);
-  doc.text('TOTAL', 140, boxY + 1);
-  doc.text(money(total), 194, boxY + 1, { align: 'right' });
+  doc.text(etiquetaTotal, 140, boxY + 1);
+  doc.text(money(total, moneda), 194, boxY + 1, { align: 'right' });
 
   /* ── Banco ── */
   if (pdfCfg.mostrar_banco !== false) {

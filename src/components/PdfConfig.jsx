@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PLANTILLAS, generarDocumentoPDF, DEMO } from '../utils/pdfGenerador.js';
 import { FileText, Check, Eye, RefreshCw, Download } from 'lucide-react';
+import { LIMITES, limpiarTexto } from '../utils/seguridad.js';
 
 const OPCIONES = [
   { key: 'mostrar_logo',     label: 'Mostrar logo' },
   { key: 'mostrar_banco',    label: 'Datos bancarios' },
   { key: 'mostrar_terminos', label: 'Términos y condiciones' },
   { key: 'mostrar_pagina',   label: 'Número de página' },
+  { key: 'mostrar_metodo_pago', label: 'Método de pago' },
+  { key: 'mostrar_vigencia', label: 'Vigencia del documento' },
+  { key: 'mostrar_contacto_empresa', label: 'Contacto de empresa en pie' },
+  { key: 'mostrar_nota', label: 'Nota destacada' },
 ];
 
 const COLORES_RAPIDOS = ['#16415e', '#1e293b', '#0f766e', '#4f46e5', '#b91c1c', '#c2410c', '#7c2d12', '#065f46'];
@@ -141,7 +146,7 @@ export default function PdfConfig({ pdf, setPdf, config }) {
               onChange={(e) => set('color', e.target.value)}
               className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
           </label>
-          <input value={pdf.color || '#16415e'} onChange={(e) => set('color', e.target.value)}
+          <input maxLength="7" value={pdf.color || '#16415e'} onChange={(e) => set('color', limpiarTexto(e.target.value, 7))}
             className="w-32 p-2.5 bg-slate-50 border border-slate-100 rounded-xl font-mono font-bold text-sm outline-none uppercase" />
           <div className="flex gap-1.5 flex-wrap">
             {COLORES_RAPIDOS.map(c => (
@@ -163,6 +168,19 @@ export default function PdfConfig({ pdf, setPdf, config }) {
               {n}
             </button>
           ))}
+        </div>
+      </Seccion>
+
+      <Seccion titulo="Datos comerciales">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <label className="text-xs font-bold text-slate-600">Moneda<select value={pdf.moneda || 'MXN'} onChange={(e) => set('moneda', e.target.value)} className="mt-1 w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold"><option value="MXN">Peso mexicano (MX$)</option><option value="USD">Dólar estadounidense (US$)</option><option value="EUR">Euro (€)</option></select></label>
+          <label className="text-xs font-bold text-slate-600">Prefijo de folio<input maxLength={LIMITES.pdfPrefijo} value={pdf.prefijo_folio || ''} onChange={(e) => set('prefijo_folio', limpiarTexto(e.target.value, LIMITES.pdfPrefijo))} placeholder="Ej. COT-" className="mt-1 w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold" /></label>
+          <label className="text-xs font-bold text-slate-600">Etiqueta de impuesto<input maxLength={LIMITES.pdfEtiqueta} value={pdf.etiqueta_impuesto || 'IVA'} onChange={(e) => set('etiqueta_impuesto', limpiarTexto(e.target.value, LIMITES.pdfEtiqueta))} placeholder="IVA" className="mt-1 w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold" /></label>
+          <label className="text-xs font-bold text-slate-600">Tasa de impuesto (%)<input type="number" min="0" max="100" value={pdf.tasa_impuesto ?? 16} onChange={(e) => set('tasa_impuesto', Math.max(0, Math.min(100, Number(e.target.value) || 0)))} className="mt-1 w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold" /></label>
+          <label className="text-xs font-bold text-slate-600">Etiqueta del total<input maxLength={LIMITES.pdfEtiqueta} value={pdf.etiqueta_total || 'TOTAL'} onChange={(e) => set('etiqueta_total', limpiarTexto(e.target.value, LIMITES.pdfEtiqueta))} placeholder="TOTAL" className="mt-1 w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold" /></label>
+          <label className="text-xs font-bold text-slate-600">Vigencia predeterminada (días)<input type="number" min="0" max="365" value={pdf.validez_dias ?? 15} onChange={(e) => set('validez_dias', Math.max(0, Math.min(365, Number(e.target.value) || 0)))} className="mt-1 w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold" /></label>
+          <label className="text-xs font-bold text-slate-600 md:col-span-2">Texto adicional en el pie<input maxLength={LIMITES.pdfPie} value={pdf.pie_texto || ''} onChange={(e) => set('pie_texto', limpiarTexto(e.target.value, LIMITES.pdfPie))} placeholder="Ej. Gracias por su preferencia" className="mt-1 w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold" /></label>
+          <label className="text-xs font-bold text-slate-600 md:col-span-2">Nota destacada bajo el encabezado<input maxLength={LIMITES.pdfNota} value={pdf.nota_destacada || ''} onChange={(e) => set('nota_destacada', limpiarTexto(e.target.value, LIMITES.pdfNota))} placeholder="Ej. Precios sujetos a disponibilidad" className="mt-1 w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold" /></label>
         </div>
       </Seccion>
 

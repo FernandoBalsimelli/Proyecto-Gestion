@@ -6,6 +6,7 @@ import { useUI } from '../components/ui/UI.jsx';
 import {
   CalendarDays, Plus, Save, Trash2, Pencil, Clock, MapPin, User,
   CheckCircle2, PlayCircle, AlertTriangle, X, Search, ChevronRight,
+  FileText, Bell,
 } from 'lucide-react';
 import {
   LIMITES, limpiarTexto, textoParaGuardar, normalizar,
@@ -30,12 +31,13 @@ export const PRIORIDADES = {
 const VACIO = {
   titulo: '', descripcion: '', direccion: '',
   fecha: fechaLocalISO(), hora: '', duracion_min: 60,
-  estado: 'pendiente', prioridad: 'normal', cliente_id: '',
+  estado: 'pendiente', prioridad: 'normal', cliente_id: '', venta_id: '', recordatorio_fecha: '',
 };
 
 const MAX_TRABAJOS = 500;
 
 const formatoMX = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
+const money = (n) => `$${(Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
 const formatoDiaLargo = (iso) =>
   new Date(`${iso}T12:00:00`).toLocaleDateString('es-MX', {
     weekday: 'long', day: 'numeric', month: 'long',
@@ -63,6 +65,7 @@ export default function Agenda({ session }) {
 
   const [trabajos, setTrabajos] = useState([]);
   const [clientes, setClientes] = useState([]);
+  const [ventas, setVentas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
 
@@ -76,7 +79,7 @@ export default function Agenda({ session }) {
   /* ─────────── Datos ─────────── */
   const cargar = useCallback(async () => {
     if (!negocioId) return;
-    const [t, c] = await Promise.all([
+    const [t, c, v] = await Promise.all([
       supabase.from('agenda').select('*')
         .eq('negocio_id', negocioId)
         .order('fecha', { ascending: true })
@@ -84,10 +87,13 @@ export default function Agenda({ session }) {
         .limit(MAX_TRABAJOS),
       supabase.from('clientes').select('id, nombre, alias, telefono, direccion')
         .eq('negocio_id', negocioId).order('nombre').limit(2000),
+      supabase.from('ventas').select('id, folio, cliente_id, cliente, monto, estado')
+        .eq('negocio_id', negocioId).order('fecha', { ascending: false }).limit(1000),
     ]);
     if (t.error) toast.error('No se pudo cargar la agenda: ' + t.error.message);
     setTrabajos(t.data || []);
     setClientes(c.data || []);
+    setVentas(v.data || []);
     setCargando(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [negocioId]);
@@ -139,6 +145,8 @@ export default function Agenda({ session }) {
       estado: t.estado || 'pendiente',
       prioridad: t.prioridad || 'normal',
       cliente_id: t.cliente_id ?? '',
+      venta_id: t.venta_id ?? '',
+      recordatorio_fecha: t.recordatorio_fecha ?? '',
     });
     setMostrarForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -167,6 +175,8 @@ export default function Agenda({ session }) {
       estado: ESTADOS_AGENDA[form.estado] ? form.estado : 'pendiente',
       prioridad: PRIORIDADES[form.prioridad] ? form.prioridad : 'normal',
       cliente_id: form.cliente_id || null,
+      venta_id: form.venta_id || null,
+      recordatorio_fecha: form.recordatorio_fecha || null,
     };
 
     setGuardando(true);
@@ -191,6 +201,22 @@ export default function Agenda({ session }) {
     if (error) return toast.error('No se pudo actualizar: ' + error.message);
     setTrabajos(prev => prev.map(x => (x.id === t.id ? { ...x, estado } : x)));
     toast.ok(`Marcado como ${ESTADOS_AGENDA[estado].label.toLowerCase()}.`);
+  };
+
+  const posponer = async (t) => {
+    if (t.estado === 'completado') return toast.warn('Un trabajo terminado no se puede posponer.');
+    const base = t.fecha >= fechaLocalISO() ? t.fecha : fechaLocalISO();
+    const nuevaFecha = sumarDiasLocal(base, 1);
+    const ok = await confirmar({
+      titulo: 'Posponer trabajo',
+      mensaje: `“${t.titulo}” se moverá al ${formatoMX(nuevaFecha)}.`,
+      okTexto: 'Posponer',
+    });
+    if (!ok) return;
+    const { error } = await supabase.from('agenda').update({ fecha: nuevaFecha, estado: 'pendiente' }).eq('id', t.id);
+    if (error) return toast.error('No se pudo posponer: ' + error.message);
+    toast.ok(`Trabajo pospuesto al ${formatoMX(nuevaFecha)}.`);
+    cargar();
   };
 
   const eliminar = async (t) => {
@@ -262,6 +288,13 @@ export default function Agenda({ session }) {
   }, [trabajos]);
 
   const nombreCliente = (id) => clientes.find(c => String(c.id) === String(id))?.nombre;
+  const cotizacionesDisponibles = form.cliente_id
+    ? ventas.filter(v => String(v.cliente_id) === String(form.cliente_id))
+    : ventas;
+
+  const crearCotizacion = (t) => navigate('/presupuestos', {
+    state: { agendaOrigen: { id: t.id, clienteId: t.cliente_id, cliente: nombreCliente(t.cliente_id) } },
+  });
 
   /* ─────────── Render ─────────── */
   return (
@@ -342,6 +375,25 @@ export default function Agenda({ session }) {
                 {Object.entries(ESTADOS_AGENDA).map(([id, s]) => <option key={id} value={id}>{s.label}</option>)}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Cotización vinculada</label>
+            <select value={form.venta_id} onChange={(e) => setCampo('venta_id', e.target.value)} className={inputCls}>
+              <option value="">Sin cotización vinculada</option>
+              {cotizacionesDisponibles.map(v => (
+                <option key={v.id} value={v.id}>
+                  #{String(v.folio || '').padStart(4, '0')} · {v.cliente || 'Público en General'} · {money(v.monto)}
+                </option>
+              ))}
+            </select>
+            <p className="text-[10px] font-medium text-slate-400 mt-1">Puedes vincular una existente o crear una desde la flecha del trabajo.</p>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Fecha de recordatorio</label>
+            <input type="date" value={form.recordatorio_fecha} onChange={(e) => setCampo('recordatorio_fecha', e.target.value)} className={inputCls} />
+            <p className="text-[10px] font-medium text-slate-400 mt-1">Úsala para llamadas de seguimiento, compras de material o confirmación con el cliente.</p>
           </div>
 
           <div>
@@ -501,11 +553,22 @@ export default function Agenda({ session }) {
                                   <MapPin size={12} /> {t.direccion}
                                 </a>
                               )}
-                              {t.duracion_min > 0 && (
-                                <span className="flex items-center gap-1.5">
-                                  <Clock size={12} /> {t.duracion_min} min
-                                </span>
-                              )}
+                            {t.duracion_min > 0 && (
+                              <span className="flex items-center gap-1.5">
+                                <Clock size={12} /> {t.duracion_min} min
+                              </span>
+                            )}
+                            {t.venta_id && (
+                              <button onClick={() => navigate('/historial')}
+                                className="flex items-center gap-1.5 text-primario hover:underline">
+                                <FileText size={12} /> Cotización vinculada
+                              </button>
+                            )}
+                            {t.recordatorio_fecha && (
+                              <span className={`flex items-center gap-1.5 ${t.recordatorio_fecha <= fechaLocalISO() ? 'text-amber-600' : 'text-slate-400'}`}>
+                                <Bell size={12} /> Recordatorio {formatoMX(t.recordatorio_fecha)}
+                              </span>
+                            )}
                             </div>
                           </div>
                         </div>
@@ -526,7 +589,13 @@ export default function Agenda({ session }) {
                               <CheckCircle2 size={15} /> Terminado
                             </button>
                           )}
-                          <button onClick={() => navigate('/presupuestos')} title="Crear cotización"
+                          {t.estado !== 'completado' && (
+                            <button onClick={() => posponer(t)} title="Posponer para mañana"
+                              className="min-h-[44px] px-3 rounded-xl bg-amber-50 text-amber-700 text-[10px] font-black uppercase hover:bg-amber-100 transition flex items-center gap-1">
+                              <Clock size={14} /> Mañana
+                            </button>
+                          )}
+                          <button onClick={() => crearCotizacion(t)} title="Crear y vincular cotización"
                             className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-primario hover:bg-primario-suave transition">
                             <ChevronRight size={18} />
                           </button>

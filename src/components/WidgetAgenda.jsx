@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../supabaseClient.js';
-import { useNegocio } from '../context/NegocioContext.jsx';
+import { useAgenda } from '../context/AgendaContext.jsx';
 import {
   CalendarDays, Clock, MapPin, ArrowRight, CheckCircle2,
-  AlertTriangle, Plus,
+  AlertTriangle, Plus, Bell,
 } from 'lucide-react';
 import { fechaLocalISO, sumarDiasLocal } from '../utils/seguridad.js';
 
@@ -12,50 +11,6 @@ import { fechaLocalISO, sumarDiasLocal } from '../utils/seguridad.js';
  * Hook compartido: una sola consulta a `agenda` que alimenta los tres widgets
  * del dashboard. Se monta una vez aunque el usuario active varios widgets.
  */
-export function useAgendaResumen(dias = 7) {
-  const { negocioId } = useNegocio();
-  const [trabajos, setTrabajos] = useState([]);
-  const [cargando, setCargando] = useState(true);
-
-  const cargar = useCallback(async () => {
-    if (!negocioId) return;
-    const hoy = fechaLocalISO();
-    const { data } = await supabase.from('agenda')
-      .select('id, titulo, fecha, hora, estado, prioridad, direccion, cliente_id, duracion_min')
-      .eq('negocio_id', negocioId)
-      .in('estado', ['pendiente', 'en_proceso'])
-      .lte('fecha', sumarDiasLocal(hoy, dias))
-      .order('fecha', { ascending: true })
-      .order('hora', { ascending: true, nullsFirst: false })
-      .limit(100);
-    setTrabajos(data || []);
-    setCargando(false);
-  }, [negocioId, dias]);
-
-  useEffect(() => {
-    if (!negocioId) return;
-    cargar();
-    let t;
-    const recargar = () => { clearTimeout(t); t = setTimeout(cargar, 500); };
-    const canal = supabase.channel(`dash-agenda-${negocioId}`)
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'agenda', filter: `negocio_id=eq.${negocioId}` },
-        recargar)
-      .subscribe();
-    return () => { clearTimeout(t); supabase.removeChannel(canal); };
-  }, [negocioId, cargar]);
-
-  const hoy = fechaLocalISO();
-  return useMemo(() => ({
-    cargando,
-    trabajos,
-    deHoy: trabajos.filter(t => t.fecha === hoy),
-    vencidos: trabajos.filter(t => t.fecha < hoy),
-    proximos: trabajos.filter(t => t.fecha > hoy),
-    recargar: cargar,
-  }), [trabajos, cargando, hoy, cargar]);
-}
-
 const Panel = ({ titulo, icon, children, accion }) => (
   <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
     <div className="flex items-center justify-between mb-5 gap-2">
@@ -118,12 +73,11 @@ function Vacio({ mensaje, onNuevo }) {
 /* ══════════ Widget 1: trabajos de hoy (+ vencidos) ══════════ */
 export function WidgetAgendaHoy() {
   const navigate = useNavigate();
-  const { deHoy, vencidos, cargando, recargar } = useAgendaResumen(0);
+  const { deHoy, vencidos, cargando, cambiarEstado } = useAgenda();
   const hoy = fechaLocalISO();
 
   const completar = async (t) => {
-    await supabase.from('agenda').update({ estado: 'completado' }).eq('id', t.id);
-    recargar();
+    await cambiarEstado(t.id, 'completado');
   };
 
   const lista = [...vencidos, ...deHoy];
@@ -163,12 +117,11 @@ export function WidgetAgendaHoy() {
 /* ══════════ Widget 2: próximos 7 días ══════════ */
 export function WidgetAgendaProximos() {
   const navigate = useNavigate();
-  const { proximos, cargando, recargar } = useAgendaResumen(7);
+  const { proximos, cargando, cambiarEstado } = useAgenda();
   const hoy = fechaLocalISO();
 
   const completar = async (t) => {
-    await supabase.from('agenda').update({ estado: 'completado' }).eq('id', t.id);
-    recargar();
+    await cambiarEstado(t.id, 'completado');
   };
 
   return (
@@ -198,7 +151,7 @@ export function WidgetAgendaProximos() {
 
 /* ══════════ Widget 3: KPI de trabajos abiertos ══════════ */
 export function KpiAgenda() {
-  const { trabajos, deHoy, vencidos } = useAgendaResumen(365);
+  const { trabajos, deHoy, vencidos } = useAgenda();
   return (
     <div className="p-6 rounded-3xl border border-slate-200 bg-white shadow-sm flex items-center gap-4">
       <div className="bg-primario-suave text-primario p-4 rounded-2xl shrink-0">
@@ -213,5 +166,34 @@ export function KpiAgenda() {
         </p>
       </div>
     </div>
+  );
+}
+
+/** Seguimiento de clientes/materiales sin obligar a crear otra tarea. */
+export function WidgetRecordatorios() {
+  const navigate = useNavigate();
+  const { trabajos, cargando } = useAgenda();
+  const hoy = fechaLocalISO();
+  const limite = sumarDiasLocal(hoy, 3);
+  const recordatorios = trabajos
+    .filter(t => t.recordatorio_fecha && t.recordatorio_fecha <= limite)
+    .sort((a, b) => a.recordatorio_fecha.localeCompare(b.recordatorio_fecha));
+
+  return (
+    <Panel titulo="Recordatorios" icon={<Bell size={14} />}
+      accion={<button onClick={() => navigate('/agenda')} className="text-[10px] font-black uppercase text-primario hover:underline">Ver agenda</button>}>
+      {cargando ? <div className="h-20 bg-slate-100 rounded-2xl animate-pulse" /> : recordatorios.length === 0 ? (
+        <p className="py-8 text-center text-sm font-bold text-slate-400">Sin seguimientos para los próximos 3 días.</p>
+      ) : (
+        <div className="space-y-2">
+          {recordatorios.slice(0, 6).map(t => (
+            <button key={t.id} onClick={() => navigate('/agenda')} className="w-full text-left p-3 bg-amber-50 rounded-2xl hover:bg-amber-100 transition">
+              <p className="text-[10px] font-black text-amber-700 uppercase">{t.recordatorio_fecha <= hoy ? 'Para hoy o vencido' : t.recordatorio_fecha.split('-').reverse().slice(0, 2).join('/')}</p>
+              <p className="font-bold text-slate-700 text-sm truncate">{t.titulo}</p>
+            </button>
+          ))}
+        </div>
+      )}
+    </Panel>
   );
 }

@@ -1,122 +1,34 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNegocio } from '../context/NegocioContext.jsx';
-import { LayoutDashboard, ChevronUp, ChevronDown, Check } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, GripVertical, LayoutDashboard, Zap } from 'lucide-react';
 
 export const CATALOGO_WIDGETS = {
-  // ── Indicadores ──
-  ingresos:         { label: 'Dinero recibido',      tipo: 'kpi' },
-  por_cobrar:       { label: 'Por cobrar (saldo)',   tipo: 'kpi' },
-  egresos:          { label: 'Total egresos',        tipo: 'kpi', permiso: 'ver_finanzas' },
-  utilidad:         { label: 'Utilidad neta',        tipo: 'kpi', permiso: 'ver_finanzas' },
-  num_cotizaciones: { label: 'N.º de cotizaciones',  tipo: 'kpi' },
-  ticket_promedio:  { label: 'Ticket promedio',      tipo: 'kpi' },
-  tasa_cierre:      { label: 'Tasa de cierre (%)',   tipo: 'kpi' },
-  clientes_activos: { label: 'Clientes registrados', tipo: 'kpi' },
-  agenda_kpi:       { label: 'Trabajos abiertos',    tipo: 'kpi' },
+  ingresos:{label:'Dinero recibido',tipo:'kpi'}, por_cobrar:{label:'Por cobrar (saldo)',tipo:'kpi'}, egresos:{label:'Total egresos',tipo:'kpi',permiso:'ver_finanzas'}, utilidad:{label:'Utilidad neta',tipo:'kpi',permiso:'ver_finanzas'}, num_cotizaciones:{label:'N.º de cotizaciones',tipo:'kpi'}, ticket_promedio:{label:'Ticket promedio',tipo:'kpi'}, tasa_cierre:{label:'Tasa de cierre (%)',tipo:'kpi'}, clientes_activos:{label:'Clientes registrados',tipo:'kpi'}, inventario_bajo:{label:'Materiales por reponer',tipo:'kpi',modulo:'inventario'}, agenda_kpi:{label:'Trabajos abiertos',tipo:'kpi',modulo:'agenda'}, oportunidades_abiertas:{label:'Oportunidades abiertas',tipo:'kpi',modulo:'comercial'}, pronostico_comercial:{label:'Pronóstico comercial',tipo:'kpi',modulo:'comercial'},
+  accesos_rapidos:{label:'Accesos directos',tipo:'bloque'}, agenda_hoy:{label:'Agenda de hoy',tipo:'bloque',modulo:'agenda'}, agenda_proximos:{label:'Próximos 7 días',tipo:'bloque',modulo:'agenda'}, recordatorios:{label:'Recordatorios de seguimiento',tipo:'bloque',modulo:'agenda'}, grafica_cartera:{label:'Gráfica de cartera',tipo:'bloque'}, tendencia:{label:'Tendencia mensual',tipo:'bloque'}, cobranza:{label:'Cobranza pendiente',tipo:'bloque'}, abonos:{label:'Últimos abonos',tipo:'bloque'}, top_clientes:{label:'Top 5 clientes',tipo:'bloque'}, gastos_categoria:{label:'Gastos por categoría',tipo:'bloque',permiso:'ver_finanzas'}, ultimas:{label:'Últimas cotizaciones',tipo:'bloque'}, seguimientos_comerciales:{label:'Seguimientos comerciales',tipo:'bloque',modulo:'comercial'},
+};
 
-  // ── Bloques ──
-  agenda_hoy:       { label: 'Agenda de hoy',        tipo: 'bloque' },
-  agenda_proximos:  { label: 'Próximos 7 días',      tipo: 'bloque' },
-  grafica_cartera:  { label: 'Gráfica de cartera',   tipo: 'bloque' },
-  tendencia:        { label: 'Tendencia mensual',    tipo: 'bloque' },
-  cobranza:         { label: 'Cobranza pendiente',   tipo: 'bloque' },
-  abonos:           { label: 'Últimos abonos',       tipo: 'bloque' },
-  top_clientes:     { label: 'Top 5 clientes',       tipo: 'bloque' },
-  gastos_categoria: { label: 'Gastos por categoría', tipo: 'bloque', permiso: 'ver_finanzas' },
-  ultimas:          { label: 'Últimas cotizaciones', tipo: 'bloque' },
+export const ACCIONES_RAPIDAS = {
+  cotizacion:{label:'Nueva cotización'}, agenda:{label:'Programar trabajo',modulo:'agenda'}, cliente:{label:'Nuevo cliente'}, oportunidad:{label:'Nueva oportunidad',modulo:'comercial',permiso:'gestionar_comercial'}, gasto:{label:'Registrar egreso',modulo:'finanzas',permiso:'ver_finanzas'}, inventario:{label:'Movimiento de inventario',modulo:'inventario',permiso:'gestionar_inventario'},
 };
 
 export default function DashboardConfig() {
-  const { dashboardCfg, setDashboardCfg, puede } = useNegocio();
-
-  // Descartamos ids que ya no existen en el catálogo (config vieja guardada en BD).
-  const activos = (dashboardCfg.widgets || []).filter(id => CATALOGO_WIDGETS[id]);
-
-  const toggle = (id) => setDashboardCfg({
-    ...dashboardCfg,
-    widgets: activos.includes(id) ? activos.filter(w => w !== id) : [...activos, id],
-  });
-
-  const mover = (i, dir) => {
-    const n = [...activos];
-    const j = i + dir;
-    if (j < 0 || j >= n.length) return;
-    [n[i], n[j]] = [n[j], n[i]];
-    setDashboardCfg({ ...dashboardCfg, widgets: n });
-  };
-
-  const disponibles = Object.entries(CATALOGO_WIDGETS)
-    .filter(([, w]) => !w.permiso || puede(w.permiso));
-
-  return (
-    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-6">
-      <h3 className="font-bold text-slate-700 flex items-center gap-2 border-b border-slate-100 pb-3">
-        <LayoutDashboard size={18} /> Panel de control
-      </h3>
-
-      <div>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
-          Orden de los elementos activos
-        </p>
-        {activos.length === 0 ? (
-          <p className="text-sm text-slate-400 font-medium bg-slate-50 p-4 rounded-2xl text-center">
-            No hay elementos seleccionados.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {activos.map((id, i) => {
-              const w = CATALOGO_WIDGETS[id];
-              return (
-                <div key={id} className="flex items-center gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                  <span className="text-[10px] font-black text-slate-300 w-5">{i + 1}</span>
-                  <span className="flex-1 font-bold text-sm text-slate-700 truncate">{w.label}</span>
-                  <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-slate-200 text-slate-500 shrink-0">
-                    {w.tipo}
-                  </span>
-                  <button onClick={() => mover(i, -1)} disabled={i === 0} aria-label="Subir"
-                    className="p-1.5 text-slate-400 hover:text-primario disabled:opacity-20"><ChevronUp size={16} /></button>
-                  <button onClick={() => mover(i, 1)} disabled={i === activos.length - 1} aria-label="Bajar"
-                    className="p-1.5 text-slate-400 hover:text-primario disabled:opacity-20"><ChevronDown size={16} /></button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <div>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Elementos disponibles</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {disponibles.map(([id, w]) => {
-            const on = activos.includes(id);
-            return (
-              <button key={id} type="button" onClick={() => toggle(id)}
-                className={`flex items-center gap-3 p-3 rounded-2xl border-2 text-left transition ${
-                  on ? 'border-primario bg-primario-suave' : 'border-slate-100 hover:border-slate-300'}`}>
-                <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
-                  on ? 'bg-primario text-white' : 'bg-slate-200'}`}>
-                  {on && <Check size={13} strokeWidth={3} />}
-                </div>
-                <span className={`font-bold text-sm ${on ? 'text-primario-dark' : 'text-slate-600'}`}>{w.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Periodo por defecto</p>
-        <select value={dashboardCfg.periodo_default || 'mes'}
-          onChange={(e) => setDashboardCfg({ ...dashboardCfg, periodo_default: e.target.value })}
-          className="w-full md:w-64 p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold outline-none">
-          <option value="hoy">Hoy</option>
-          <option value="semana">Esta semana</option>
-          <option value="mes">Este mes</option>
-          <option value="trimestre">Trimestre</option>
-          <option value="anio">Este año</option>
-          <option value="todo">Todo</option>
-        </select>
-      </div>
-    </div>
-  );
+  const { dashboardCfg, setDashboardCfg, puede, moduloActivo } = useNegocio();
+  const [arrastrando, setArrastrando] = useState(null);
+  const todos=(dashboardCfg.widgets||[]).filter(id=>CATALOGO_WIDGETS[id]);
+  const activos=todos.filter(id=>{const w=CATALOGO_WIDGETS[id];return !w.modulo||moduloActivo(w.modulo);});
+  const acciones=(Array.isArray(dashboardCfg.accesos_rapidos)?dashboardCfg.accesos_rapidos:['cotizacion','agenda','cliente']).filter(id=>ACCIONES_RAPIDAS[id]);
+  const guardarWidgets=widgets=>setDashboardCfg({...dashboardCfg,widgets});
+  const toggle=id=>guardarWidgets(todos.includes(id)?todos.filter(x=>x!==id):[...todos,id]);
+  const mover=(i,dir)=>{const j=i+dir;if(j<0||j>=activos.length)return;const n=[...todos],a=n.indexOf(activos[i]),b=n.indexOf(activos[j]);[n[a],n[b]]=[n[b],n[a]];guardarWidgets(n);};
+  const soltar=(origen,destino)=>{if(!origen||origen===destino)return;const n=[...todos],a=n.indexOf(origen),b=n.indexOf(destino);if(a<0||b<0)return;const [x]=n.splice(a,1);n.splice(b,0,x);guardarWidgets(n);};
+  const soltarToque=e=>{const t=e.changedTouches?.[0];const destino=t&&document.elementFromPoint(t.clientX,t.clientY)?.closest('[data-widget-config]')?.dataset.widgetConfig;soltar(arrastrando,destino);setArrastrando(null);};
+  const toggleAccion=id=>setDashboardCfg({...dashboardCfg,accesos_rapidos:acciones.includes(id)?acciones.filter(x=>x!==id):[...acciones,id]});
+  const disponibles=Object.entries(CATALOGO_WIDGETS).filter(([,w])=>(!w.permiso||puede(w.permiso))&&(!w.modulo||moduloActivo(w.modulo)));
+  const accionesDisponibles=Object.entries(ACCIONES_RAPIDAS).filter(([,a])=>(!a.permiso||puede(a.permiso))&&(!a.modulo||moduloActivo(a.modulo)));
+  return <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-6"><h3 className="font-bold text-slate-700 flex items-center gap-2 border-b border-slate-100 pb-3"><LayoutDashboard size={18}/> Panel de control</h3>
+    <section><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Orden de elementos activos</p><p className="text-[11px] font-medium text-slate-400 mb-3">Arrastra el asa para reordenar. En celular, mantén y suelta sobre otro elemento; los botones siguen disponibles.</p>{!activos.length?<p className="text-sm text-slate-400 font-medium bg-slate-50 p-4 rounded-2xl text-center">No hay elementos seleccionados.</p>:<div className="space-y-2">{activos.map((id,i)=>{const w=CATALOGO_WIDGETS[id];return <div key={id} data-widget-config={id} draggable onDragStart={()=>setArrastrando(id)} onDragOver={e=>e.preventDefault()} onDrop={()=>{soltar(arrastrando,id);setArrastrando(null)}} onDragEnd={()=>setArrastrando(null)} className={`flex items-center gap-2 bg-slate-50 p-3 rounded-2xl border transition ${arrastrando===id?'opacity-40 border-primario':'border-slate-100'}`}><span draggable onDragStart={()=>setArrastrando(id)} onTouchStart={()=>setArrastrando(id)} onTouchEnd={soltarToque} style={{touchAction:'none'}} className="cursor-grab text-slate-300 active:cursor-grabbing p-1" title="Arrastrar"><GripVertical size={17}/></span><span className="text-[10px] font-black text-slate-300 w-4">{i+1}</span><span className="flex-1 font-bold text-sm text-slate-700 truncate">{w.label}</span><span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-slate-200 text-slate-500 shrink-0">{w.tipo}</span><button onClick={()=>mover(i,-1)} disabled={i===0} aria-label="Subir" className="p-1.5 text-slate-400 hover:text-primario disabled:opacity-20"><ChevronUp size={16}/></button><button onClick={()=>mover(i,1)} disabled={i===activos.length-1} aria-label="Bajar" className="p-1.5 text-slate-400 hover:text-primario disabled:opacity-20"><ChevronDown size={16}/></button></div>})}</div>}</section>
+    <section><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Elementos disponibles</p><div className="grid grid-cols-1 md:grid-cols-2 gap-2">{disponibles.map(([id,w])=>{const on=activos.includes(id);return <button key={id} type="button" onClick={()=>toggle(id)} className={`flex items-center gap-3 p-3 rounded-2xl border-2 text-left transition ${on?'border-primario bg-primario-suave':'border-slate-100 hover:border-slate-300'}`}><span className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${on?'bg-primario text-white':'bg-slate-200'}`}>{on&&<Check size={13} strokeWidth={3}/>}</span><span className={`font-bold text-sm ${on?'text-primario-dark':'text-slate-600'}`}>{w.label}</span></button>})}</div></section>
+    <section><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex gap-1 items-center"><Zap size={12}/> Accesos directos</p><p className="text-[11px] font-medium text-slate-400 mb-3">Elige las acciones que aparecerán en el widget “Accesos directos”.</p><div className="grid grid-cols-1 md:grid-cols-2 gap-2">{accionesDisponibles.map(([id,a])=>{const on=acciones.includes(id);return <button key={id} type="button" onClick={()=>toggleAccion(id)} className={`flex items-center gap-3 p-3 rounded-2xl border-2 text-left transition ${on?'border-primario bg-primario-suave':'border-slate-100 hover:border-slate-300'}`}><span className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${on?'bg-primario text-white':'bg-slate-200'}`}>{on&&<Check size={13} strokeWidth={3}/>}</span><span className={`font-bold text-sm ${on?'text-primario-dark':'text-slate-600'}`}>{a.label}</span></button>})}</div></section>
+    <section><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Periodo por defecto</p><select value={dashboardCfg.periodo_default||'mes'} onChange={e=>setDashboardCfg({...dashboardCfg,periodo_default:e.target.value})} className="w-full md:w-64 p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold outline-none"><option value="hoy">Hoy</option><option value="semana">Esta semana</option><option value="mes">Este mes</option><option value="trimestre">Trimestre</option><option value="anio">Este año</option><option value="todo">Todo</option></select></section>
+  </div>;
 }

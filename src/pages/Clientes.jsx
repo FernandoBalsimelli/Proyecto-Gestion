@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   UserPlus, Search, Edit2, Trash2, Save, Mail, Smartphone,
-  MapPin, AlertTriangle, X,
+  MapPin, AlertTriangle, X, MessageCircle,
 } from 'lucide-react';
 import { supabase } from '../supabaseClient.js';
 import { useNegocio } from '../context/NegocioContext.jsx';
@@ -10,6 +10,7 @@ import {
   LIMITES, EMAIL_RE, telefonoMX, formatearTelefono, soloDigitos,
   limpiarTexto, textoParaGuardar, normalizar, verificarPolitica,
 } from '../utils/seguridad.js';
+import { abrirWhatsApp } from '../utils/exportar.js';
 
 const VACIO = { nombre: '', alias: '', telefono: '', correo: '', direccion: '' };
 
@@ -354,6 +355,12 @@ export default function Clientes({ session }) {
                     )}
                   </div>
                   <div className="flex gap-1 shrink-0">
+                    {c.telefono && (
+                      <button onClick={() => abrirWhatsApp(c.telefono, `Hola ${c.nombre}, te contacto de parte de nuestro negocio.`)} title="Enviar WhatsApp"
+                        className="min-w-[40px] min-h-[40px] p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition">
+                        <MessageCircle size={16} />
+                      </button>
+                    )}
                     <button onClick={() => editar(c)} title="Editar"
                       className="min-w-[40px] min-h-[40px] p-2 text-primario hover:bg-primario-suave rounded-xl transition">
                       <Edit2 size={16} />

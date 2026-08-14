@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient.js';
 import { KeyRound, Eye, EyeOff, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { LIMITES } from '../utils/seguridad.js';
 
 function Marco({ children }) {
     return (
@@ -122,7 +123,7 @@ export default function Recuperar() {
                 </div>
 
                 <div className="relative">
-                    <input type={ver ? 'text' : 'password'} value={pass} onChange={(e) => setPass(e.target.value)}
+                    <input maxLength={LIMITES.password} type={ver ? 'text' : 'password'} value={pass} onChange={(e) => setPass(e.target.value.slice(0, LIMITES.password))}
                         placeholder="Nueva contraseña" required autoComplete="new-password"
                         className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-4 pr-11 text-white placeholder-slate-500 outline-none focus:border-blue-500" />
                     <button type="button" onClick={() => setVer(!ver)}
@@ -131,7 +132,7 @@ export default function Recuperar() {
                     </button>
                 </div>
 
-                <input type={ver ? 'text' : 'password'} value={pass2} onChange={(e) => setPass2(e.target.value)}
+                <input maxLength={LIMITES.password} type={ver ? 'text' : 'password'} value={pass2} onChange={(e) => setPass2(e.target.value.slice(0, LIMITES.password))}
                     placeholder="Confirmar contraseña" required autoComplete="new-password"
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-4 text-white placeholder-slate-500 outline-none focus:border-blue-500" />
 

@@ -21,16 +21,36 @@ export const FUENTES = {
   rounded: { nombre: 'Redonda', css: '"Trebuchet MS", ui-rounded, system-ui, sans-serif' },
 };
 
-const TEMA_DEFAULT = { color: 'blue', sidebar: 'oscuro', fuente: 'sans', radio: 'suave' };
+const TEMA_DEFAULT = { color: 'blue', sidebar: 'oscuro', sidebar_ancho: 'normal', sidebar_ocultos: [], sidebar_orden: [], fuente: 'sans', radio: 'suave', densidad: 'normal', reducir_movimiento: false };
 
 const DASH_DEFAULT = {
-  widgets: ['ingresos', 'por_cobrar', 'egresos', 'utilidad', 'agenda_hoy', 'grafica_cartera', 'cobranza'],
+  widgets: ['ingresos', 'por_cobrar', 'egresos', 'utilidad', 'accesos_rapidos', 'oportunidades_abiertas', 'agenda_hoy', 'seguimientos_comerciales', 'grafica_cartera', 'cobranza'],
+  accesos_rapidos: ['cotizacion', 'agenda', 'cliente'],
   periodo_default: 'mes',
 };
+
+export const MODULOS_DEFAULT = { agenda: true, finanzas: true, nomina: true, inventario: true, comercial: true, operaciones: true, activos: true };
+export const MODULOS_CATALOGO = {
+  agenda:   { label: 'Agenda y órdenes de trabajo', desc: 'Trabajos, calendario y vínculo con cotizaciones.' },
+  finanzas: { label: 'Control financiero',          desc: 'Gastos, utilidad, flujo y reportes financieros.' },
+  nomina:   { label: 'Nómina y empleados',          desc: 'Empleados, asistencia, cálculos y pagos.' },
+  inventario: { label: 'Inventario y proveedores', desc: 'Materiales, stock mínimo, compras y salidas.' },
+  comercial: { label: 'CRM y oportunidades',      desc: 'Prospectos, embudo comercial, seguimientos y previsión de ventas.' },
+  operaciones: { label: 'Centro de operación',     desc: 'Tareas, metas, notas internas, gastos recurrentes y checklists.' },
+  activos: { label: 'Activos y mantenimiento',     desc: 'Herramientas, vehículos, maquinaria y mantenimiento preventivo.' },
+};
+
+export const sanearModulos = (m = {}) => Object.fromEntries(
+  Object.keys(MODULOS_DEFAULT).map(k => [k, m[k] !== false]),
+);
 
 const HEX_RE = /^#[0-9a-f]{6}$/i;
 const SIDEBARS = ['oscuro', 'claro', 'color'];
 const RADIOS = ['recto', 'suave', 'redondo'];
+const DENSIDADES = ['normal', 'compacta'];
+const ANCHOS_SIDEBAR = ['compacto', 'normal', 'amplio'];
+const SIDEBAR_EDITABLE = ['dashboard', 'agenda', 'presupuestos', 'historial', 'finanzas', 'clientes', 'oportunidades', 'inventario', 'nomina'];
+const listaSidebarSegura = (v) => Array.isArray(v) ? [...new Set(v.filter(x => SIDEBAR_EDITABLE.includes(x)))] : [];
 
 const ajustar = (hex, pct) => {
   if (!HEX_RE.test(hex)) return hex;
@@ -59,8 +79,13 @@ const sanearTema = (t = {}) => ({
   color: t.color === 'custom' || PALETAS[t.color] ? t.color : 'blue',
   colorHex: HEX_RE.test(t.colorHex || '') ? t.colorHex : '#2563eb',
   sidebar: SIDEBARS.includes(t.sidebar) ? t.sidebar : 'oscuro',
+  sidebar_ancho: ANCHOS_SIDEBAR.includes(t.sidebar_ancho) ? t.sidebar_ancho : 'normal',
+  sidebar_ocultos: listaSidebarSegura(t.sidebar_ocultos),
+  sidebar_orden: listaSidebarSegura(t.sidebar_orden),
   fuente: FUENTES[t.fuente] ? t.fuente : 'sans',
   radio: RADIOS.includes(t.radio) ? t.radio : 'suave',
+  densidad: DENSIDADES.includes(t.densidad) ? t.densidad : 'normal',
+  reducir_movimiento: t.reducir_movimiento === true,
 });
 
 export function NegocioProvider({ session, children }) {
@@ -68,6 +93,7 @@ export function NegocioProvider({ session, children }) {
   const [esSuperAdmin, setEsSuperAdmin] = useState(false);
   const [tema, setTemaRaw] = useState(TEMA_DEFAULT);
   const [dashboardCfg, setDashboardCfg] = useState(DASH_DEFAULT);
+  const [modulos, setModulos] = useState(MODULOS_DEFAULT);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
 
@@ -102,7 +128,7 @@ export function NegocioProvider({ session, children }) {
   const recargarConfig = useCallback(async () => {
     if (!negocioId) return;
     const { data } = await supabase.from('configuracion')
-      .select('tema, dashboard').eq('negocio_id', negocioId).maybeSingle();
+      .select('tema, dashboard, modulos').eq('negocio_id', negocioId).maybeSingle();
 
     setTemaRaw(sanearTema({ ...TEMA_DEFAULT, ...(data?.tema || {}) }));
     setDashboardCfg({
@@ -110,6 +136,7 @@ export function NegocioProvider({ session, children }) {
       ...(data?.dashboard || {}),
       widgets: Array.isArray(data?.dashboard?.widgets) ? data.dashboard.widgets : DASH_DEFAULT.widgets,
     });
+    setModulos(sanearModulos(data?.modulos));
   }, [negocioId]);
 
   useEffect(() => { recargarConfig(); }, [recargarConfig]);
@@ -130,6 +157,8 @@ export function NegocioProvider({ session, children }) {
     root.style.setProperty('--color-primario-suave', suave);
     root.style.setProperty('--fuente-app', f.css);
     root.setAttribute('data-radio', t.radio);
+    document.body.setAttribute('data-densidad', t.densidad);
+    document.body.setAttribute('data-reducir-movimiento', String(t.reducir_movimiento));
   }, [tema]);
 
   const esDueno = miembro?.rol === 'dueno';
@@ -143,6 +172,7 @@ export function NegocioProvider({ session, children }) {
     (p) => esDueno || miembro?.permisos?.[p] === true,
     [esDueno, miembro],
   );
+  const moduloActivo = useCallback((modulo) => modulos[modulo] !== false, [modulos]);
 
   return (
     <NegocioContext.Provider value={{
@@ -158,6 +188,9 @@ export function NegocioProvider({ session, children }) {
       setTema,
       dashboardCfg,
       setDashboardCfg,
+      modulos,
+      setModulos,
+      moduloActivo,
       recargarConfig,
       recargarMiembro: cargarMiembro,
     }}>
@@ -177,6 +210,23 @@ export function Protegido({ permiso, children }) {
           <p className="text-slate-500 font-medium text-sm mt-2">
             No tienes permiso para ver esta sección. Pídele al dueño del negocio que te lo habilite.
           </p>
+        </div>
+      </div>
+    );
+  }
+  return children;
+}
+
+/** Oculta módulos opcionales sin borrar datos ni revocar permisos. */
+export function ModuloProtegido({ modulo, children }) {
+  const { moduloActivo } = useNegocio();
+  if (!moduloActivo(modulo)) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[60vh]">
+        <div className="bg-white border border-slate-200 rounded-3xl p-10 text-center max-w-md shadow-sm">
+          <div className="w-14 h-14 bg-slate-100 text-slate-500 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl">◌</div>
+          <h3 className="font-black text-slate-800 text-lg uppercase tracking-tight">Módulo desactivado</h3>
+          <p className="text-slate-500 font-medium text-sm mt-2">El dueño puede reactivarlo desde Configuración → Producto. Tus datos permanecen intactos.</p>
         </div>
       </div>
     );

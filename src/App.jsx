@@ -3,6 +3,10 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './supabaseClient.js';
 import { Lock, Mail, KeyRound, ArrowLeft, Building2, LogIn } from 'lucide-react';
 import Nomina from './pages/Nomina.jsx';
+import Inventario from './pages/Inventario.jsx';
+import Oportunidades from './pages/Oportunidades.jsx';
+import CentroOperacion from './pages/CentroOperacion.jsx';
+import Activos from './pages/Activos.jsx';
 import Agenda from './pages/Agenda.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Dashboard from './pages/Dashboard.jsx';
@@ -15,7 +19,8 @@ import Equipo from './pages/Equipo.jsx';
 import Administracion from './pages/Administracion.jsx';
 import MiCuenta from './pages/MiCuenta.jsx';
 import Recuperar from './pages/Recuperar.jsx';
-import { NegocioProvider, useNegocio, Protegido } from './context/NegocioContext.jsx';
+import { NegocioProvider, useNegocio, Protegido, ModuloProtegido } from './context/NegocioContext.jsx';
+import { AgendaProvider } from './context/AgendaContext.jsx';
 import {
   LIMITES, EMAIL_RE, limpiarTexto, textoParaGuardar,
   verificarPolitica, limpiarIntentos,
@@ -279,7 +284,9 @@ export default function App() {
   /* ---------- App ---------- */
   return (
     <NegocioProvider session={session}>
-      <Shell session={session} />
+      <AgendaProvider>
+        <Shell session={session} />
+      </AgendaProvider>
     </NegocioProvider>
   );
 }
@@ -288,7 +295,8 @@ export default function App() {
    SHELL — layout + rutas
    ══════════════════════════════════════════════ */
 function Shell({ session }) {
-  const { cargando, error, esSuperAdmin, recargarMiembro } = useNegocio();
+  const { cargando, error, esSuperAdmin, recargarMiembro, tema } = useNegocio();
+  const margenSidebar = tema?.sidebar_ancho === 'compacto' ? 'md:ml-56' : tema?.sidebar_ancho === 'amplio' ? 'md:ml-72' : 'md:ml-64';
 
   if (cargando) {
     return (
@@ -307,20 +315,32 @@ function Shell({ session }) {
   return (
     <div className="flex bg-slate-50 min-h-screen">
       <Sidebar session={session} />
-      <div className="flex-1 md:ml-64 pt-16 md:pt-0 min-h-screen w-full overflow-x-hidden">
+      <div className={`flex-1 ${margenSidebar} pt-16 md:pt-0 min-h-screen w-full overflow-x-hidden`}>
         <Routes>
           <Route path="/" element={<Dashboard session={session} />} />
           <Route path="/presupuestos" element={<Presupuestos session={session} />} />
           <Route path="/historial" element={<Historial session={session} />} />
           <Route path="/clientes" element={<Clientes session={session} />} />
-          <Route path="/agenda" element={<Agenda session={session} />} />
+          <Route path="/agenda" element={<ModuloProtegido modulo="agenda"><Agenda session={session} /></ModuloProtegido>} />
           <Route path="/mi-cuenta" element={<MiCuenta session={session} />} />
 
           <Route path="/nomina" element={
-            <Protegido permiso="gestionar_equipo"><Nomina session={session} /></Protegido>
+            <ModuloProtegido modulo="nomina"><Protegido permiso="gestionar_nomina"><Nomina session={session} /></Protegido></ModuloProtegido>
+          } />
+          <Route path="/inventario" element={
+            <ModuloProtegido modulo="inventario"><Protegido permiso="gestionar_inventario"><Inventario session={session} /></Protegido></ModuloProtegido>
+          } />
+          <Route path="/oportunidades" element={
+            <ModuloProtegido modulo="comercial"><Protegido permiso="gestionar_comercial"><Oportunidades session={session} /></Protegido></ModuloProtegido>
+          } />
+          <Route path="/operacion" element={
+            <ModuloProtegido modulo="operaciones"><Protegido permiso="gestionar_operaciones"><CentroOperacion session={session} /></Protegido></ModuloProtegido>
+          } />
+          <Route path="/activos" element={
+            <ModuloProtegido modulo="activos"><Protegido permiso="gestionar_operaciones"><Activos session={session} /></Protegido></ModuloProtegido>
           } />
           <Route path="/finanzas" element={
-            <Protegido permiso="ver_finanzas"><Finanzas session={session} /></Protegido>
+            <ModuloProtegido modulo="finanzas"><Protegido permiso="ver_finanzas"><Finanzas session={session} /></Protegido></ModuloProtegido>
           } />
           <Route path="/configuracion" element={
             <Protegido permiso="editar_configuracion"><Configuracion session={session} /></Protegido>

@@ -35,6 +35,25 @@ export const LIMITES = {
   agendaTitulo: 120,
   agendaDescripcion: 600,
 
+  // ── CRM y operación ──
+  oportunidadNombre: 120,
+  oportunidadContacto: 100,
+  oportunidadNotas: 1500,
+  tareaTitulo: 120,
+  tareaDetalle: 1500,
+  metaNombre: 100,
+  notaInternaTitulo: 120,
+  notaInternaContenido: 3000,
+  gastoRecurrente: 180,
+  checklistTipo: 50,
+  checklistItem: 160,
+
+  // ── PDF ──
+  pdfPrefijo: 12,
+  pdfEtiqueta: 24,
+  pdfPie: 150,
+  pdfNota: 110,
+
   // ── Empleados / nómina ──
   puesto: 80,
   rfc: 13,

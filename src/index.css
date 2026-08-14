@@ -16,6 +16,11 @@ button, input, select, textarea, optgroup {
 
 body { -webkit-tap-highlight-color: transparent; }
 
+body[data-densidad="compacta"] .p-6 { padding: 1rem; }
+body[data-densidad="compacta"] .p-5 { padding: .875rem; }
+body[data-densidad="compacta"] .space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: 1rem; }
+body[data-reducir-movimiento="true"] *, body[data-reducir-movimiento="true"] *::before, body[data-reducir-movimiento="true"] *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+
 /* ══ Bordes configurables ══ */
 [data-radio="recto"] .rounded-3xl,
 [data-radio="recto"] .rounded-2xl,
