@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend,
@@ -70,6 +70,7 @@ export default function Dashboard({ session }) {
   const [cargando, setCargando] = useState(true);
   const [editandoPanel, setEditandoPanel] = useState(false);
   const [arrastrandoWidget, setArrastrandoWidget] = useState(null);
+  const arrastreWidgetRef = useRef(null);
 
   const [periodo, setPeriodo] = useState(dashboardCfg?.periodo_default || 'mes');
   const [custom, setCustom] = useState({ desde: '', hasta: '' });
@@ -454,6 +455,14 @@ export default function Dashboard({ session }) {
     const [id] = n.splice(a, 1); n.splice(b, 0, id);
     setDashboardCfg({ ...dashboardCfg, widgets: n });
   };
+  const iniciarArrastre = (id, evento) => {
+    arrastreWidgetRef.current = id;
+    setArrastrandoWidget(id);
+    if (evento?.dataTransfer) {
+      evento.dataTransfer.effectAllowed = 'move';
+      evento.dataTransfer.setData('text/plain', id);
+    }
+  };
   const moverConBoton = (id, dir) => {
     const lista = CATALOGO_WIDGETS[id]?.tipo === 'kpi' ? kpis : bloques;
     const i = lista.indexOf(id), destino = lista[i + dir]; if (destino) moverWidget(id, destino);
@@ -461,15 +470,25 @@ export default function Dashboard({ session }) {
   const finalizarToque = (e) => {
     const toque = e.changedTouches?.[0];
     const destino = toque && document.elementFromPoint(toque.clientX, toque.clientY)?.closest('[data-dashboard-widget]')?.dataset.dashboardWidget;
-    moverWidget(arrastrandoWidget, destino); setArrastrandoWidget(null);
+    moverWidget(arrastreWidgetRef.current, destino); arrastreWidgetRef.current = null; setArrastrandoWidget(null);
+  };
+  const iniciarPuntero = (id, e) => {
+    e.preventDefault();
+    iniciarArrastre(id);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const finalizarPuntero = (e) => {
+    const destino = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-dashboard-widget]')?.dataset.dashboardWidget;
+    moverWidget(arrastreWidgetRef.current, destino);
+    arrastreWidgetRef.current = null; setArrastrandoWidget(null);
   };
   const WidgetEditable = ({ id }) => <div data-dashboard-widget={id} className={`relative ${arrastrandoWidget === id ? 'opacity-40' : ''}`}>
     {editandoPanel && <div className="absolute right-3 top-3 z-20 flex items-center gap-1 bg-white border shadow-md rounded-xl p-1">
-      <span draggable onDragStart={() => setArrastrandoWidget(id)} onDragEnd={() => setArrastrandoWidget(null)} onTouchStart={() => setArrastrandoWidget(id)} onTouchEnd={finalizarToque} style={{ touchAction: 'none' }} className="p-1.5 text-slate-400 cursor-grab active:cursor-grabbing"><GripVertical size={16}/></span>
+      <span draggable onDragStart={e => iniciarArrastre(id, e)} onDragEnd={() => { arrastreWidgetRef.current = null; setArrastrandoWidget(null); }} onPointerDown={e => iniciarPuntero(id, e)} onPointerUp={finalizarPuntero} onPointerCancel={() => { arrastreWidgetRef.current = null; setArrastrandoWidget(null); }} style={{ touchAction: 'none', userSelect: 'none' }} className="p-1.5 text-slate-400 cursor-grab active:cursor-grabbing"><GripVertical size={16}/></span>
       <button onClick={() => moverConBoton(id, -1)} aria-label="Mover antes" className="p-1 text-slate-500"><ChevronUp size={15}/></button>
       <button onClick={() => moverConBoton(id, 1)} aria-label="Mover después" className="p-1 text-slate-500"><ChevronDown size={15}/></button>
     </div>}
-    <div draggable={editandoPanel} onDragStart={() => editandoPanel && setArrastrandoWidget(id)} onDragOver={e => editandoPanel && e.preventDefault()} onDrop={() => { moverWidget(arrastrandoWidget, id); setArrastrandoWidget(null); }}>{W[id]()}</div>
+    <div onDragOver={e => { if (editandoPanel) e.preventDefault(); }} onDrop={e => { const origen = e.dataTransfer?.getData('text/plain') || arrastreWidgetRef.current; moverWidget(origen, id); arrastreWidgetRef.current = null; setArrastrandoWidget(null); }}>{W[id]()}</div>
   </div>;
 
   /* ─────────── Render ─────────── */

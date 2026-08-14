@@ -495,7 +495,7 @@ export default function Presupuestos({ session }) {
                       </p>
                     )}
                   </div>
-                  <div className="flex flex-col gap-1 shrink-0">
+                  <div className="flex items-center gap-1 shrink-0 pt-1">
                     <button onClick={() => guardarEnCatalogo(c)} title="Guardar en catálogo"
                       aria-label="Guardar en catálogo"
                       className="min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition">

@@ -18,6 +18,7 @@ import {
 const money = (n) => `$${(Number(n) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const formatoMX = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
+const etiquetaPeriodo = (tipo) => ({ semanal: 'Semanal', quincenal: 'Quincenal', mensual: 'Mensual' }[tipo] || 'Nómina');
 const fechasEntre = (inicio, fin) => {
   if (!esFechaValida(inicio) || !esFechaValida(fin) || fin < inicio) return [];
   const fechas = [];
@@ -515,14 +516,15 @@ function TabAsistencia({ negocioId, empleados, toast }) {
           className="px-4 min-h-[44px] bg-slate-100 rounded-xl font-bold text-sm hover:bg-slate-200 transition">
           ← Anterior
         </button>
-        <div className="text-center">
+        <div className="text-center min-w-0">
           <p className="font-black text-slate-800 text-sm uppercase">
             {nombreDia(dias[0])} — {nombreDia(dias[6])}
           </p>
-          <button onClick={() => setSemana(fechaLocalISO(obtenerLunesLocal()))}
-            className="text-[10px] font-black uppercase text-primario hover:underline">
-            Ir a esta semana
-          </button>
+          <div className="flex items-center justify-center gap-2 mt-1"><input type="date" value={semana}
+            onChange={(e) => e.target.value && setSemana(fechaLocalISO(obtenerLunesLocal(new Date(`${e.target.value}T12:00:00`))))}
+            aria-label="Elegir una semana" className="w-[132px] p-1 text-[10px] font-bold bg-slate-50 rounded-lg border border-slate-200" />
+            <button onClick={() => setSemana(fechaLocalISO(obtenerLunesLocal()))}
+              className="text-[10px] font-black uppercase text-primario hover:underline">Esta semana</button></div>
         </div>
         <button onClick={() => cambiarSemana(1)}
           className="px-4 min-h-[44px] bg-slate-100 rounded-xl font-bold text-sm hover:bg-slate-200 transition">
@@ -551,7 +553,7 @@ function TabAsistencia({ negocioId, empleados, toast }) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+              <div className="grid grid-flow-col auto-cols-[minmax(148px,1fr)] overflow-x-auto pb-2 md:grid-flow-row md:grid-cols-4 lg:grid-cols-7 md:auto-cols-auto gap-2 snap-x">
                 {dias.map(fecha => {
                   const key = `${emp.id}_${fecha}`;
                   const reg = registros[key] || {};
@@ -560,7 +562,7 @@ function TabAsistencia({ negocioId, empleados, toast }) {
 
                   return (
                     <div key={fecha}
-                      className={`p-3 rounded-xl border ${
+                      className={`p-3 rounded-xl border snap-start ${
                         esDomingo(fecha) ? 'bg-slate-50 border-slate-200' : 'border-slate-100'}`}>
                       <p className="text-[9px] font-black text-slate-400 uppercase mb-2">
                         {nombreDia(fecha)}
@@ -892,7 +894,7 @@ function TabPagos({ negocioId, empleados, toast, confirmar, session }) {
             className="w-full md:w-auto p-3 rounded-xl bg-white text-slate-700 font-bold outline-none">
             <option value="">Selecciona un periodo</option>
             {periodos.map(p => <option key={p.id} value={p.id}>
-              {formatoMX(p.fecha_inicio)} al {formatoMX(p.fecha_fin)} · {p.tipo || 'Nómina'}
+              {formatoMX(p.fecha_inicio)} al {formatoMX(p.fecha_fin)} · {etiquetaPeriodo(p.tipo)}
             </option>)}
           </select>
         </div>
@@ -911,9 +913,10 @@ function TabPagos({ negocioId, empleados, toast, confirmar, session }) {
               const verDetalle = detalleEmpleadoId === item.recibo.id;
               return <div key={item.recibo.id} className="bg-white/10 border border-white/10 p-4 rounded-2xl">
                 <p className="font-black truncate">{item.empleado?.nombre || 'Empleado eliminado'}</p>
-                <p className="text-[10px] font-black uppercase text-slate-400 mt-1">Asistencia: {item.diasTrabajados} día(s)</p>
+                <p className="text-[10px] font-black uppercase text-slate-400 mt-1">Asistencia calculada: {item.diasTrabajados} día(s)</p>
                 <p className="text-xs text-slate-300 mt-1">Cubiertos: {item.diasPagados} · Pendientes: {item.diasPendientes}</p>
-                <p className="text-lg font-black text-emerald-300 mt-2">{money(item.montoPendiente)}</p>
+                <p className="text-[10px] font-bold text-slate-400 mt-2">Cálculo de nómina: {money(item.recibo.neto_pagar)}</p>
+                <p className="text-lg font-black text-emerald-300">Pendiente por pagar: {money(item.montoPendiente)}</p>
                 <button type="button" onClick={() => setDetalleEmpleadoId(verDetalle ? null : item.recibo.id)}
                   className="mt-2 text-[10px] font-black uppercase text-blue-300 hover:text-white underline">
                   {verDetalle ? 'Ocultar desglose' : 'Ver fechas y motivos'}
@@ -1323,6 +1326,12 @@ function TabNomina({ negocioId, empleados, config, toast, confirmar, session }) 
   };
 
   const totalNomina = recibos.reduce((a, r) => a + r.netoPagar, 0);
+  const seleccionarSemana = (valor) => {
+    if (!valor) return;
+    const lunes = fechaLocalISO(obtenerLunesLocal(new Date(`${valor}T12:00:00`)));
+    setFechaInicio(lunes); setFechaFin(sumarDiasLocal(lunes, 6));
+    setCalculado(false); setRecibos([]); setPeriodoGuardadoId(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -1344,14 +1353,14 @@ function TabNomina({ negocioId, empleados, config, toast, confirmar, session }) 
           <div>
             <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Fecha inicio</label>
             <input type="date" value={fechaInicio}
-              onChange={(e) => { setFechaInicio(e.target.value); setCalculado(false); }}
+              onChange={(e) => tipoPeriodo === 'semanal' ? seleccionarSemana(e.target.value) : (setFechaInicio(e.target.value), setCalculado(false))}
               className={inputCls} />
           </div>
           <div>
             <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Fecha fin</label>
-            <input type="date" value={fechaFin}
+            <input type="date" value={fechaFin} disabled={tipoPeriodo === 'semanal'}
               onChange={(e) => { setFechaFin(e.target.value); setCalculado(false); }}
-              className={inputCls} />
+              className={`${inputCls} disabled:opacity-60`} />
           </div>
           <div className="flex items-end">
             <button onClick={calcular} disabled={calculando}
@@ -1360,6 +1369,8 @@ function TabNomina({ negocioId, empleados, config, toast, confirmar, session }) 
             </button>
           </div>
         </div>
+
+        {tipoPeriodo === 'semanal' && <p className="text-[11px] font-bold text-primario bg-primario-suave p-3 rounded-xl">Semana seleccionada: lunes a domingo. Cambia la fecha de inicio para elegir otra semana; la fecha final se ajusta automáticamente.</p>}
 
         <p className="text-[11px] font-bold text-slate-400">
           Periodo de {diasPeriodo} día(s): {formatoMX(fechaInicio)} al {formatoMX(fechaFin)}
