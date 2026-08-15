@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { crearClienteDatos } from './api/dataClient.js'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -23,10 +24,29 @@ if (!url || !key) {
   throw new Error(msg)
 }
 
-export const supabase = createClient(url, key, {
+const clienteSupabase = createClient(url, key, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
   },
 })
+
+const usarApiDatos = import.meta.env.PROD && import.meta.env.VITE_DATA_TRANSPORT !== 'direct'
+const apiDatos = crearClienteDatos(async () => {
+  const { data: { session } } = await clienteSupabase.auth.getSession()
+  return session?.access_token || null
+})
+
+// Auth y Realtime requieren el cliente de Supabase; los datos de negocio usan
+// la API HTTP en producción. VITE_DATA_TRANSPORT=direct permite una reversión
+// rápida durante la transición.
+export const supabase = {
+  auth: clienteSupabase.auth,
+  channel: clienteSupabase.channel.bind(clienteSupabase),
+  removeChannel: clienteSupabase.removeChannel.bind(clienteSupabase),
+  functions: clienteSupabase.functions,
+  storage: clienteSupabase.storage,
+  rpc: clienteSupabase.rpc.bind(clienteSupabase),
+  from: usarApiDatos ? apiDatos.from : clienteSupabase.from.bind(clienteSupabase),
+}
