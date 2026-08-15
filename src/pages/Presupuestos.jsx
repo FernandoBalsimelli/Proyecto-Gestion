@@ -515,10 +515,7 @@ export default function Presupuestos({ session }) {
                 <div className="flex items-end gap-2 pl-8">
                   <div className="w-20 shrink-0">
                     <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Cant.</label>
-                    {/*
-                      Antes era type="number", que acepta "1e9", "+" y "-".
-                      Con type="text" + entradaNumerica solo entran dígitos y un punto.
-                    */}
+                    {/* El valor se valida con entradaNumerica antes de guardarse. */}
                     <input type="text" inputMode="decimal" value={c.cantidad}
                       onChange={(e) => actualizarFila(i, 'cantidad', entradaNumerica(e.target.value, { maxEnteros: 6 }))}
                       onKeyDown={bloquearTeclasNumericas}

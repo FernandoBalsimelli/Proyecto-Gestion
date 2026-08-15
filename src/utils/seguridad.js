@@ -134,8 +134,7 @@ export const formatearTelefono = (valor = '') => {
 
 /**
  * Convierte cualquier input a número seguro.
- * Bloquea 'e', 'E', '+', '-', Infinity y NaN — los tres culpables de que
- * un <input type="number"> deje pasar basura como "1e99".
+ * Evita notación científica, signos y valores no finitos en importes.
  */
 export const numeroSeguro = (valor, { min = 0, max = Number.MAX_SAFE_INTEGER, decimales = 2 } = {}) => {
   const n = typeof valor === 'number' ? valor : parseFloat(String(valor ?? '').replace(/[^0-9.\-]/g, ''));
@@ -205,9 +204,8 @@ export const esFechaValida = (iso) => {
 
 /**
  * Ventana deslizante guardada en localStorage.
- * Primera línea de defensa contra "too many requests": evita que un botón
- * (login, recuperar, invitar) dispare decenas de peticiones en segundos.
- * NO sustituye el rate limit del servidor — ver sql/02_rate_limit.sql.
+ * Evita repetir acciones sensibles desde el navegador en pocos segundos.
+ * El límite del servidor sigue siendo la validación principal.
  */
 export const puedeIntentar = (clave, maximo, ventanaMs) => {
   const ahora = Date.now();

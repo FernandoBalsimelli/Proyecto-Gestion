@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { LIMITES, EMAIL_RE, limpiarTexto, textoParaGuardar, verificarPolitica } from '../utils/seguridad.js';
 
-/** Igual que en Equipo: 14 caracteres con mezcla garantizada de tipos. */
+// Contraseña temporal con letras mayúsculas, minúsculas y números.
 const generarPassword = () => {
   const mays = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const mins = 'abcdefghijkmnopqrstuvwxyz';
@@ -25,8 +25,7 @@ const inputCls = 'w-full p-3 pl-9 bg-slate-50 border border-slate-100 rounded-xl
 function Credenciales({ datos, onCerrar, onCopiar }) {
   if (!datos) return null;
 
-  // Si la cuenta ya existía, la Edge Function ya NO le cambia la contraseña
-  // (antes lo hacía y eso era un secuestro de cuenta silencioso).
+  // Las cuentas existentes conservan su contraseña al vincularlas a un negocio.
   const sinPassword = datos.existia && !datos.reset && !datos.password;
 
   return (

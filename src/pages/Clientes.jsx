@@ -81,13 +81,7 @@ export default function Clientes({ session }) {
     setCampo(name, limpio);
   };
 
-  /**
-   * TELÉFONO — la corrección clave.
-   * El input es type="text": los type="number"/"tel" del navegador dejan pasar
-   * "e", "+" y "-". Aquí el valor mostrado siempre se deriva de los dígitos
-   * reales, así que teclear, pegar "+52 (614) 123-45-67" o autocompletar
-   * terminan igual: 10 dígitos limpios.
-   */
+  // El teléfono se guarda como diez dígitos para mantener un formato consistente.
   const manejarTelefono = (e) => {
     const soloNums = telefonoMX(e.target.value);
     setCampo('telefono', soloNums);

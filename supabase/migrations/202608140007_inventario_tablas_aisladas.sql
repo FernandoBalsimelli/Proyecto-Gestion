@@ -1,5 +1,5 @@
--- Corrección: se usan tablas propias de almacén para no chocar con tablas
--- existentes de otros módulos o instalaciones anteriores.
+-- Tablas propias de almacén para evitar conflictos con módulos existentes
+-- o instalaciones anteriores.
 create table if not exists public.almacen_proveedores (
   id uuid primary key default gen_random_uuid(), negocio_id uuid not null references public.negocios(id) on delete cascade,
   nombre text not null, telefono text, email text, contacto text, notas text, created_at timestamptz not null default now()

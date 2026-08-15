@@ -17,8 +17,7 @@ const MENU_EDITABLE = [
   ['dashboard', 'Dashboard'], ['agenda', 'Agenda'], ['presupuestos', 'Nueva cotización'], ['historial', 'Historial'], ['finanzas', 'Finanzas'], ['clientes', 'Clientes'], ['oportunidades', 'Oportunidades'], ['inventario', 'Inventario'], ['nomina', 'Nómina'],
 ];
 
-/* ✅ FUERA del componente — si está dentro, React remonta todo en cada render
-   y el selector de color se cierra al arrastrar */
+// Se mantiene fuera del componente para conservar el estado de los controles.
 function Bloque({ icon, titulo, children }) {
   return (
     <div>

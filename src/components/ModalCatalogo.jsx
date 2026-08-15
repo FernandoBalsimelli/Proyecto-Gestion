@@ -110,10 +110,7 @@ export default function ModalCatalogo({ onCerrar, onAgregar }) {
       precio: String(it.precio ?? ''),
     });
 
-    /* El contador se incrementa en la base con una RPC atómica.
-       Antes se leía veces_usado, se sumaba 1 en JavaScript y se
-       reescribía: si dos personas usaban el mismo servicio a la vez,
-       una de las dos sumas se perdía. */
+    // La RPC incrementa el contador de uso de forma atómica.
     supabase.rpc('incrementar_uso_servicio', { p_id: it.id }).then(() => {});
 
     toast.ok(`"${it.descripcion.slice(0, 30)}${it.descripcion.length > 30 ? '…' : ''}" agregado.`);

@@ -16,7 +16,7 @@ const OPCIONES = [
 
 const COLORES_RAPIDOS = ['#16415e', '#1e293b', '#0f766e', '#4f46e5', '#b91c1c', '#c2410c', '#7c2d12', '#065f46'];
 
-/* ✅ Fuera del componente */
+// Sección reutilizable de ajustes del documento.
 function Seccion({ titulo, children }) {
   return (
     <div>
@@ -47,7 +47,7 @@ export default function PdfConfig({ pdf, setPdf, config }) {
     setPreviewUrl(url);
   };
 
-  // Regenera automáticamente al cambiar cualquier ajuste (con debounce)
+  // Actualiza la vista previa sin generar un PDF por cada pulsación.
   useEffect(() => {
     if (!abierto) return;
     const t = setTimeout(generarPreview, 350);

@@ -44,9 +44,7 @@ const TABS = [
 
 const inputCls = 'w-full p-3 bg-slate-50 rounded-xl border border-slate-100 font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-primario/10 transition';
 
-/* ══════════════════════════════════════════════════════════════
-   COMPONENTE PRINCIPAL
-   ══════════════════════════════════════════════════════════════ */
+// Coordina las vistas de empleados, asistencia, cálculo y pagos.
 export default function Nomina({ session }) {
   const { negocioId } = useNegocio();
   const { toast, confirmar } = useUI();
@@ -117,9 +115,7 @@ export default function Nomina({ session }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════
-   TAB: EMPLEADOS
-   ══════════════════════════════════════════════════════════════ */
+// Alta y actualización de empleados.
 function TabEmpleados({ negocioId, empleados, onRecargar, toast, confirmar }) {
   const FORM_VACIO = {
     nombre: '', puesto: '', fecha_ingreso: fechaLocalISO(), salario_diario: '',
@@ -277,7 +273,7 @@ function TabEmpleados({ negocioId, empleados, onRecargar, toast, confirmar }) {
             </div>
           </div>
 
-          {/* Seguro social */}
+          {/* Datos de seguridad social */}
           <div className="border-t border-slate-100 pt-4">
             <label className="flex items-center gap-3 cursor-pointer mb-4">
               <input type="checkbox" checked={form.es_asegurado}
@@ -315,7 +311,7 @@ function TabEmpleados({ negocioId, empleados, onRecargar, toast, confirmar }) {
             )}
           </div>
 
-          {/* Infonavit */}
+          {/* Crédito Infonavit */}
           {form.es_asegurado && (
             <div className="border-t border-slate-100 pt-4">
               <label className="flex items-center gap-3 cursor-pointer mb-4">
@@ -366,7 +362,7 @@ function TabEmpleados({ negocioId, empleados, onRecargar, toast, confirmar }) {
         </form>
       )}
 
-      {/* Lista */}
+      {/* Empleados activos */}
       <div className="space-y-3">
         {empleados.length === 0 ? (
           <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center">
@@ -411,19 +407,14 @@ function TabEmpleados({ negocioId, empleados, onRecargar, toast, confirmar }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════
-   TAB: ASISTENCIA
-   ══════════════════════════════════════════════════════════════ */
+// La asistencia se captura por semana para usar el mismo rango en nómina.
 function TabAsistencia({ negocioId, empleados, toast }) {
-  // Siempre arranca en LUNES, calculado con fechas locales.
+  // La semana empieza en lunes y usa fechas locales para evitar desfases.
   const [semana, setSemana] = useState(() => fechaLocalISO(obtenerLunesLocal()));
   const [registros, setRegistros] = useState({});
   const [guardando, setGuardando] = useState(false);
 
-  /* Antes el bucle iba de i = -1 a 5, así que la "semana del lunes"
-     empezaba en el domingo anterior y el séptimo día nunca aparecía.
-     Y usaba toISOString(), que convierte a UTC: en México eso resta un
-     día según la hora. Ahora: 7 días exactos, todos en hora local. */
+  // Se generan siete días consecutivos a partir del lunes seleccionado.
   const dias = useMemo(
     () => Array.from({ length: 7 }, (_, i) => sumarDiasLocal(semana, i)),
     [semana]
@@ -457,7 +448,7 @@ function TabAsistencia({ negocioId, empleados, toast }) {
 
   const setHoras = (empId, fecha, campo, valor) => {
     const key = `${empId}_${fecha}`;
-    // Tope legal: 9 horas extra por semana antes de pasar a triple.
+    // El registro semanal limita cada tipo de hora extra a nueve horas.
     const horas = Math.min(9, Math.max(0, num(valor)));
     setRegistros(prev => ({
       ...prev,
@@ -468,12 +459,7 @@ function TabAsistencia({ negocioId, empleados, toast }) {
     }));
   };
 
-  /**
-   * Guardado en LOTE.
-   * Antes se hacía un `await supabase.upsert()` por celda dentro de un for:
-   * con 8 empleados × 7 días son 56 peticiones seguidas. Eso es provocarse
-   * uno mismo el "too many requests". Ahora es un solo viaje.
-   */
+  // Se guarda toda la semana en una sola operación para reducir peticiones.
   const guardarTodo = async () => {
     if (guardando) return;
 
@@ -510,7 +496,7 @@ function TabAsistencia({ negocioId, empleados, toast }) {
 
   return (
     <div className="space-y-4">
-      {/* Navegador de semana */}
+      {/* Selección de semana */}
       <div className="flex items-center justify-between gap-3 flex-wrap bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <button onClick={() => cambiarSemana(-1)}
           className="px-4 min-h-[44px] bg-slate-100 rounded-xl font-bold text-sm hover:bg-slate-200 transition">
@@ -609,7 +595,7 @@ function TabAsistencia({ negocioId, empleados, toast }) {
                 })}
               </div>
 
-              {/* Resumen de la semana */}
+              {/* Resumen semanal del empleado */}
               <div className="flex gap-2 mt-3 flex-wrap">
                 {(() => {
                   let trab = 0, faltas = 0, hd = 0, ht = 0;
@@ -661,11 +647,7 @@ function TabAsistencia({ negocioId, empleados, toast }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════
-   TAB: PAGOS A EMPLEADOS
-   Cada pago se guarda en empleado_pagos. La migración crea el gasto de
-   categoría Nómina en la misma operación desde Postgres, no desde la UI.
-   ══════════════════════════════════════════════════════════════ */
+// Los pagos se guardan junto con su periodo y generan el gasto de nómina.
 function TabPagos({ negocioId, empleados, toast, confirmar, session }) {
   const [pagos, setPagos] = useState([]);
   const [periodos, setPeriodos] = useState([]);
@@ -731,8 +713,7 @@ function TabPagos({ negocioId, empleados, toast, confirmar, session }) {
   }), [empleados, pagos]);
 
   const periodoSeleccionado = periodos.find(p => String(p.id) === String(periodoId));
-  // Un adelanto manual también cuenta para el periodo cuando su rango de
-  // fechas coincide. Así no se vuelve a pagar ese día ni ese importe.
+  // Los adelantos que cruzan el periodo se descuentan del saldo pendiente.
   const pagosDelPeriodo = useMemo(() => pagos.filter(p => {
     if (String(p.periodo_id || '') === String(periodoId || '')) return true;
     if (!periodoSeleccionado || p.periodo_id) return false;
@@ -747,9 +728,7 @@ function TabPagos({ negocioId, empleados, toast, confirmar, session }) {
     const fechasSinCaptura = (periodoSeleccionado ? fechasEntre(periodoSeleccionado.fecha_inicio, periodoSeleccionado.fecha_fin) : [])
       .filter(f => !fechasConRegistro.has(f));
 
-    // Los pagos nuevos guardan fechas exactas. Para pagos creados antes de
-    // esta mejora solo existe un contador; se señala como estimación para no
-    // presentar una fecha inventada como si fuera un dato comprobado.
+    // Los pagos anteriores sin fechas se muestran como estimados.
     const fechasPagadasExactas = new Set(previos.flatMap(p => Array.isArray(p.fechas_cubiertas) ? p.fechas_cubiertas : []));
     const sinDetalle = previos.filter(p => !Array.isArray(p.fechas_cubiertas) || p.fechas_cubiertas.length === 0);
     const porAsignarDeLegado = sinDetalle.reduce((a, p) => a + num(p.dias_pagados), 0);
@@ -1043,9 +1022,7 @@ function TabPagos({ negocioId, empleados, toast, confirmar, session }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════
-   TAB: NÓMINA
-   ══════════════════════════════════════════════════════════════ */
+// Cálculo y cierre de periodos de nómina.
 function TabNomina({ negocioId, empleados, config, toast, confirmar, session }) {
   const [tipoPeriodo, setTipoPeriodo] = useState('semanal');
   const [fechaInicio, setFechaInicio] = useState(() => fechaLocalISO(obtenerLunesLocal()));
@@ -1066,7 +1043,7 @@ function TabNomina({ negocioId, empleados, config, toast, confirmar, session }) 
     return Math.max(1, Math.round(diff) + 1);
   }, [fechaInicio, fechaFin]);
 
-  /* Preajuste de fechas según el tipo de periodo, siempre con hora local. */
+  // Ajusta las fechas iniciales al periodo elegido.
   useEffect(() => {
     const hoy = new Date();
 
@@ -1164,8 +1141,7 @@ function TabNomina({ negocioId, empleados, config, toast, confirmar, session }) 
 
     setGuardando(true);
 
-    // Un periodo duplicado produciría recibos y pagos duplicados. Se bloquea
-    // antes de insertar, conservando el historial ya existente intacto.
+    // Evita crear dos periodos con el mismo rango de fechas.
     const { data: existente, error: existenteErr } = await supabase.from('nomina_periodos')
       .select('id').eq('negocio_id', negocioId)
       .eq('fecha_inicio', fechaInicio).eq('fecha_fin', fechaFin).maybeSingle();
@@ -1222,7 +1198,7 @@ function TabNomina({ negocioId, empleados, config, toast, confirmar, session }) 
     setGuardando(false);
 
     if (error) {
-      // Si fallan los recibos, el periodo huérfano solo estorba.
+      // Se elimina el periodo si no fue posible guardar sus recibos.
       await supabase.from('nomina_periodos').delete().eq('id', per.id);
       return toast.error('No se pudieron guardar los recibos: ' + error.message);
     }
@@ -1264,8 +1240,7 @@ function TabNomina({ negocioId, empleados, config, toast, confirmar, session }) 
     });
   };
 
-  /** Pago desde el cálculo: primero persiste el periodo para que recibo,
-      pago y gasto queden enlazados; luego descuenta adelantos coincidentes. */
+  // El pago queda ligado al recibo, al periodo y al gasto correspondiente.
   const pagarDesdeCalculo = async (r) => {
     if (pagandoReciboId) return;
     if (!(r.diasTrabajados > 0) || !(r.netoPagar > 0)) {
@@ -1335,7 +1310,7 @@ function TabNomina({ negocioId, empleados, config, toast, confirmar, session }) 
 
   return (
     <div className="space-y-6">
-      {/* Configuración del periodo */}
+      {/* Periodo de cálculo */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
         <h3 className="font-bold text-slate-700 flex items-center gap-2 border-b border-slate-100 pb-3">
           <Calculator size={18} /> Calcular nómina
@@ -1376,7 +1351,7 @@ function TabNomina({ negocioId, empleados, config, toast, confirmar, session }) 
           Periodo de {diasPeriodo} día(s): {formatoMX(fechaInicio)} al {formatoMX(fechaFin)}
         </p>
 
-        {/* Bonos y deducciones extra */}
+        {/* Ajustes por empleado */}
         {empleados.length > 0 && !calculado && (
           <div className="border-t border-slate-100 pt-4">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
@@ -1428,7 +1403,7 @@ function TabNomina({ negocioId, empleados, config, toast, confirmar, session }) 
         )}
       </div>
 
-      {/* Resultados */}
+      {/* Resultado del cálculo */}
       {calculado && recibos.length > 0 && (
         <>
           <div className="bg-slate-900 p-6 rounded-3xl text-white flex flex-col md:flex-row items-center justify-between gap-4">

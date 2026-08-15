@@ -38,15 +38,7 @@ const diasVencido = (v) => {
   );
 };
 
-/**
- * Botón de acción.
- *
- * En móvil: icono + etiqueta, dentro de una celda de rejilla. Al vivir en
- * una celda con ancho asignado, es imposible que se desborde del contenedor
- * y quede recortado por el `overflow-x-hidden` del layout — que era
- * exactamente el problema anterior.
- * En escritorio (sm+): solo el icono, en una fila alineada a la derecha.
- */
+// En móvil muestra texto e icono; en escritorio conserva una acción compacta.
 function Accion({ icon, label, onClick, tono = 'neutro', activo = false }) {
   const tonos = {
     neutro:   'text-slate-500 hover:text-primario hover:bg-primario-suave',
@@ -289,8 +281,7 @@ export default function Historial({ session }) {
 
   /* ─────────── Render ─────────── */
 
-  // Sin negocio resuelto, mostramos el motivo en vez de una lista vacía
-  // que parece "se borró todo".
+  // Muestra el motivo cuando todavía no se ha resuelto el negocio activo.
   if (!negocioId && !cargando) {
     return (
       <div className="p-4 md:p-8">

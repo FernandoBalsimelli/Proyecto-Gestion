@@ -79,10 +79,7 @@ export default function Dashboard({ session }) {
     setPeriodo(dashboardCfg?.periodo_default || 'mes');
   }, [dashboardCfg?.periodo_default]);
 
-  /* ─────────── Datos ───────────
-     fetchData va en useCallback: antes se redefinía en cada render, así que
-     el useEffect del canal realtime lo veía "nuevo" y destruía/recreaba la
-     suscripción constantemente. */
+  // La referencia estable evita recrear la suscripción de Realtime en cada render.
   const fetchData = useCallback(async () => {
     if (!negocioId) return;
     const [v, g, p, c, i, o] = await Promise.all([

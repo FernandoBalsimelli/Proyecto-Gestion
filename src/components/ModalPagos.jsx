@@ -346,8 +346,7 @@ export default function ModalPagos({ venta, telefonoCliente, onCerrar, onActuali
                       </button>
                     )}
                     {puede('eliminar_registros') && (
-                      /* Antes este botón vivía con opacity-0 hasta el hover:
-                         en móvil no hay hover, así que era invisible. */
+                      /* Visible también en pantallas táctiles. */
                       <button onClick={() => eliminar(p)} aria-label="Eliminar abono"
                         className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition shrink-0">
                         <Trash2 size={16} />

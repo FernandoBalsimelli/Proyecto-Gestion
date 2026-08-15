@@ -5,35 +5,11 @@ import { supabase } from '../supabaseClient.js';
 import { useNegocio } from './NegocioContext.jsx';
 import { fechaLocalISO, sumarDiasLocal } from '../utils/seguridad.js';
 
-/**
- * ══════════════════════════════════════════════════════════════
- *  AgendaContext — una sola fuente de datos para toda la agenda
- * ══════════════════════════════════════════════════════════════
- *
- * POR QUÉ EXISTE ESTE ARCHIVO:
- *
- * Antes cada widget del dashboard llamaba a su propio hook, y cada hook
- * creaba un canal de realtime con el MISMO nombre:
- *
- *     supabase.channel(`dash-agenda-${negocioId}`)
- *
- * El cliente de Supabase guarda los canales por nombre (topic). El primer
- * widget lo creaba y lo suscribía; el segundo recibía ESE MISMO canal, ya
- * suscrito, e intentaba añadirle un listener. De ahí el error:
- *
- *     cannot add `postgres_changes` callbacks for realtime:dash-agenda-…
- *     after `subscribe()`
- *
- * Se podría parchar poniéndole un nombre aleatorio a cada canal, pero eso
- * dejaría 3 suscripciones y 3 consultas idénticas por cada carga del panel.
- * La solución correcta es esta: un proveedor que consulta una vez, mantiene
- * una sola suscripción, y reparte los datos a quien los necesite —widgets
- * del dashboard, badge del menú lateral y la página de Agenda.
- */
+// Fuente única de trabajos abiertos para Agenda, el menú y los widgets.
 
 const AgendaContext = createContext(null);
 
-/** Devuelve null si no hay proveedor montado, para poder degradar con gracia. */
+// Permite usar componentes de agenda sin romper vistas donde no se monta el proveedor.
 export const useAgendaOpcional = () => useContext(AgendaContext);
 
 export const useAgenda = () => {
@@ -44,7 +20,7 @@ export const useAgenda = () => {
   return ctx;
 };
 
-const HORIZONTE_DIAS = 365;  // cubre el KPI de trabajos abiertos sin otra suscripción
+const HORIZONTE_DIAS = 365;  // Mantiene visibles los trabajos abiertos del año.
 const MAX_TRABAJOS = 300;
 
 export function AgendaProvider({ children }) {
@@ -54,10 +30,7 @@ export function AgendaProvider({ children }) {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
 
-  /* ─────────── Carga ───────────
-     Solo trabajos ABIERTOS y dentro del horizonte: es lo que alimenta los
-     resúmenes. La página de Agenda hace su propia consulta cuando el usuario
-     pide filtros históricos. */
+  // Solo se cargan trabajos abiertos; el historial se consulta en su página.
   const recargar = useCallback(async () => {
     if (!negocioId) { setCargando(false); return; }
 
@@ -83,9 +56,7 @@ export function AgendaProvider({ children }) {
     setCargando(true);
     recargar();
 
-    /* UN canal, con nombre único por negocio, creado UNA vez.
-       El antirrebote evita recargar cinco veces si se guardan varios
-       trabajos seguidos. */
+    // Un solo canal por negocio evita duplicar suscripciones de Realtime.
     let t;
     const debounced = () => { clearTimeout(t); t = setTimeout(recargar, 400); };
 
@@ -104,12 +75,10 @@ export function AgendaProvider({ children }) {
     };
   }, [negocioId, recargar, moduloActivo]);
 
-  /* ─────────── Acciones compartidas ─────────── */
-
-  /** Marca un trabajo con otro estado y actualiza la vista al instante. */
+  // Actualiza la vista de inmediato y revierte si la base rechaza el cambio.
   const cambiarEstado = useCallback(async (id, estado) => {
     const previos = trabajos;
-    // Optimista: si el estado deja de estar abierto, sale de la lista.
+    // Los trabajos cerrados dejan de formar parte de los resúmenes abiertos.
     setTrabajos(prev =>
       ['pendiente', 'en_proceso'].includes(estado)
         ? prev.map(t => (t.id === id ? { ...t, estado } : t))
@@ -121,7 +90,6 @@ export function AgendaProvider({ children }) {
     return null;
   }, [trabajos]);
 
-  /* ─────────── Derivados ─────────── */
   const valor = useMemo(() => {
     const hoy = fechaLocalISO();
     const finSemana = sumarDiasLocal(hoy, 7);
@@ -139,7 +107,7 @@ export function AgendaProvider({ children }) {
       deHoy,
       proximos,
       estaSemana,
-      // El badge del menú: lo que requiere atención hoy o antes.
+      // El indicador del menú suma pendientes de hoy y atrasados.
       pendientesUrgentes: vencidos.length + deHoy.length,
       recargar,
       cambiarEstado,

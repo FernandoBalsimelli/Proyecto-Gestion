@@ -252,10 +252,7 @@ Deno.serve(async (req) => {
       let userId: string
       if (existenteId) {
         userId = existenteId
-        /* CAMBIO IMPORTANTE: ya NO reescribimos la contraseña de una cuenta
-           que ya existía. Antes, "crear negocio" con el correo de alguien
-           registrado le cambiaba su contraseña sin avisarle: un secuestro
-           de cuenta silencioso. Ahora se vincula y conserva su acceso. */
+        // Al vincular una cuenta existente se conserva su contraseña actual.
       } else {
         const { data: nuevo, error } = await admin.auth.admin.createUser({
           email, password, email_confirm: true,

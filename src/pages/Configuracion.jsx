@@ -51,8 +51,7 @@ const TABS = [
   { id: 'producto',   label: 'Producto',   icon: PackageCheck },
 ];
 
-/* Fuera del componente: si vive dentro, React lo remonta en cada
-   pulsación y los inputs pierden el foco. */
+// Se declara fuera para que los campos conserven el foco al escribir.
 function Campo({ label, children, full, ayuda }) {
   return (
     <div className={full ? 'md:col-span-2' : ''}>
@@ -106,12 +105,7 @@ export default function Configuracion({ session }) {
     modulos: { ...sanearModulos(prev.modulos), [id]: prev.modulos?.[id] === false },
   }));
 
-  /**
-   * Carga de imágenes.
-   * El cambio importante frente a la versión anterior: se rechazan los SVG.
-   * Un SVG puede contener <script> y aquí se guarda como base64 para
-   * renderizarse luego en un <img> y dentro del PDF.
-   */
+  // Solo se aceptan imágenes rasterizadas antes de guardarlas como base64.
   const subirArchivo = (e, campo) => {
     const file = e.target.files?.[0];
     e.target.value = '';                       // permite volver a elegir el mismo archivo
@@ -143,7 +137,7 @@ export default function Configuracion({ session }) {
     setLoading(true);
     const { id, created_at, ...limpio } = cfg;
 
-    // Sanear una vez más antes de escribir: es la última barrera del cliente.
+    // Se valida nuevamente antes de guardar la configuración.
     const payload = {
       ...limpio,
       nombre:           textoParaGuardar(cfg.nombre, LIMITES.nombreNegocio) || null,

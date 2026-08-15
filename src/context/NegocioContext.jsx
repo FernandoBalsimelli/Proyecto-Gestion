@@ -70,11 +70,7 @@ const mezclarBlanco = (hex, pct) => {
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 };
 
-/**
- * Saneamos el tema antes de escribirlo en el DOM.
- * Sin esto, un valor arbitrario guardado en `configuracion.tema` se inyecta
- * tal cual en una CSS custom property: es un vector de CSS injection.
- */
+// Valida el tema antes de aplicarlo como variables CSS.
 const sanearTema = (t = {}) => ({
   color: t.color === 'custom' || PALETAS[t.color] ? t.color : 'blue',
   colorHex: HEX_RE.test(t.colorHex || '') ? t.colorHex : '#2563eb',

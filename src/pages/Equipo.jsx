@@ -20,11 +20,7 @@ const PERMISOS = [
   { key: 'gestionar_operaciones', label: 'Gestionar operación', desc: 'Tareas, metas, notas y gastos recurrentes' },
 ];
 
-/**
- * Contraseña temporal de 14 caracteres con mezcla garantizada de tipos.
- * La Edge Function ahora exige mínimo 10 y al menos dos tipos de carácter,
- * así que la generación tiene que cumplirlo siempre, no por azar.
- */
+// Genera una contraseña temporal compatible con la validación del servidor.
 const generarPassword = () => {
   const mays = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const mins = 'abcdefghijkmnopqrstuvwxyz';
@@ -138,13 +134,12 @@ export default function Equipo() {
   const togglePermiso = async (m, key) => {
     const nuevos = { ...(m.permisos || {}), [key]: !m.permisos?.[key] };
 
-    // Actualización optimista: la interfaz responde de inmediato.
+      // Actualiza la fila de inmediato mientras se guarda el permiso.
     setMiembros(prev => prev.map(x => (x.id === m.id ? { ...x, permisos: nuevos } : x)));
 
     const { error } = await supabase.from('miembros').update({ permisos: nuevos }).eq('id', m.id);
     if (error) {
-      // Antes esto era un alert() del navegador. Ahora usamos el mismo
-      // sistema de avisos que el resto de la app, y revertimos el cambio.
+      // Si falla el guardado, se restaura el valor mostrado en la tabla.
       toast.error('No se pudo cambiar el permiso: ' + error.message);
       cargar();
     }
